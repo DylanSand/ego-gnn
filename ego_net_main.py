@@ -1,18 +1,6 @@
 print('Begin Python')
 import torch
-print('Version is: ' + str(torch.version.cuda))
-DATASET = 'Cora'
-input_path = ''
-import sys
-import getopt
-opts, args = getopt.getopt(sys.argv[1:],"d:",["input_path="])
-for opt, arg in opts:
-    if opt in ("-d", "--input_path"):
-       input_path = arg + '/' + DATASET
-    else:
-       sys.exit()
-print(input_path)
-
+print('CUDA version is: ' + str(torch.version.cuda))
 import numpy as np
 import os.path as osp
 import torch.nn.functional as F
@@ -32,13 +20,33 @@ from torch_scatter import scatter_add
 from torch_geometric.nn import GCNConv, GATConv, GINConv, pool, SAGEConv
 from ./utils/helpers import has_num, reindex_edgeindex, get_adj, to_sparse
 from ./model/ego_gnn import EgoGNN
+from ./EGONETCONFIG import current_dataset
+
+DATASET = current_dataset['name']
+print('We are using the dataset: ' + DATASET)
+input_path = ''
+import sys
+import getopt
+opts, args = getopt.getopt(sys.argv[1:],"d:",["input_path="])
+for opt, arg in opts:
+    if opt in ("-d", "--input_path"):
+       input_path = arg + '/' + current_dataset['location']
+    else:
+       sys.exit()
+print(input_path)
  
 # ---------------------------------------------------------------
 print("Done 1")
  
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-#real_data = KarateClub()
-real_data = Planetoid(root=input_path, name=DATASET) 
+real_data = None
+if DATASET == "Karate Club":
+    real_data = KarateClub()
+elif DATASET == "Cora" or DATASET == "Citeseer" or DATASET == "Pubmed":
+    real_data = Planetoid(root=input_path, name=DATASET)
+elif DATASET == "Reddit":
+    real_data = Reddit()
+
 
 # ---------------------------------------------------------------
 print("Done 2")
@@ -87,7 +95,10 @@ tests = []
 TEST_NUM = 2
 EPOCH_NUM = 100
 for test in range(TEST_NUM):
-    model = EgoGNN().to(device)
+    if DATASET == "Karate Club":
+        model = EgoGNN(egoNets, device, 2).to(device)
+    else:
+        model = EgoGNN(egoNets, device, real_data.num_classes).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=1e-5)
     for epoch in range(EPOCH_NUM):
         print(epoch)
