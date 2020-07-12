@@ -30,6 +30,8 @@ from torch_geometric.data import NeighborSampler, Data, ClusterData, ClusterLoad
 import torch.nn as nern
 from torch_scatter import scatter_add
 from torch_geometric.nn import GCNConv, GATConv, GINConv, pool, SAGEConv
+from ./utils/helpers import has_num, reindex_edgeindex, get_adj, to_sparse
+from ./model/ego_gnn import EgoGNN
  
 # ---------------------------------------------------------------
 print("Done 1")
@@ -37,56 +39,9 @@ print("Done 1")
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 #real_data = KarateClub()
 real_data = Planetoid(root=input_path, name=DATASET) 
- 
+
 # ---------------------------------------------------------------
 print("Done 2")
- 
-def has_num(tensor, num):
-    temp = tensor.view(1, -1)
-    if(torch.numel((temp[0] == int(num)).nonzero()) == 0):
-        return False
-    else:
-        return True
-def reindex_edgeindex(edge_index, num_nodes):
-    curOn = 0
-    curMax = int(torch.max(edge_index))
-    while(not curMax == num_nodes - 1):
-        while(has_num(edge_index, curOn)):
-            curOn += 1
-        edge_index[edge_index == curMax] = curOn
-        curMax = int(torch.max(edge_index))
-        curOn += 1
-    return edge_index
-def get_adj(edge_index, global_edge_index, cur_node, e_id):
-  n_id = []
-  for edge in e_id:
-    n_id.append(int(global_edge_index[0][edge]))
-  n_id.append(cur_node)
-  num_nodes = len(n_id)
-  nodeDict = {}
-  for i, node in enumerate(n_id):
-    nodeDict[node] = i
-  adj = torch.eye(n=num_nodes, dtype=torch.float)
-  row, col = edge_index
-  nRow = row.tolist()
-  nCol = col.tolist()
-  for i, node in enumerate(nRow):
-    adj[nodeDict[node]][nodeDict[nCol[i]]] = 1
-  return adj
-def to_sparse(x):
-    """ converts dense tensor x to sparse format """
-    x_typename = torch.typename(x).split('.')[-1]
-    sparse_tensortype = getattr(torch.sparse, x_typename)
- 
-    indices = torch.nonzero(x)
-    if len(indices.shape) == 0:  # if all elements are zeros
-        return sparse_tensortype(*x.shape)
-    indices = indices.t()
-    values = x[tuple(indices[i] for i in range(indices.shape[0]))]
-    return sparse_tensortype(indices, values, x.size())
- 
-# ---------------------------------------------------------------
-print("Done 3")
  
 graph = real_data[0]
 #graph = five_data
@@ -111,7 +66,7 @@ for batch_size, n_id, adj in batches:
     curPlot = curPlot + 1
  
 # ---------------------------------------------------------------
-print("Done 4")
+print("Done 3")
  
 TRAIN_PERCENT = 0.1
 cur_total = int(graph.num_nodes)
@@ -123,47 +78,16 @@ for chosen in np.random.choice(cur_total, num_train):
     test_mask[chosen] = False
  
 # ---------------------------------------------------------------
-print("Done 5")
+print("Done 4")
 
-train_loader = ClusterData(graph, num_parts=int(graph.num_nodes / 10), recursive=False)
-train_loader = ClusterLoader(train_loader, batch_size=2, shuffle=True, num_workers=12)
- 
-class Net(torch.nn.Module):
-    def __init__(self):
-        super(Net, self).__init__()
-        self.conv1Inter = GINConv(torch.nn.Linear(graph.x.shape[1], graph.x.shape[1]))
-        self.conv1Intra = GINConv(torch.nn.Linear(graph.x.shape[1], 16))
-        self.conv2Inter = GINConv(torch.nn.Linear(16, 16))
-        self.conv2Intra = GINConv(torch.nn.Linear(16, real_data.num_classes))
+#train_loader = ClusterData(graph, num_parts=int(graph.num_nodes / 10), recursive=False)
+#train_loader = ClusterLoader(train_loader, batch_size=2, shuffle=True, num_workers=12)
 
-    def do_conv(self, x, convInter, convIntra, edge_index_in):
-        output_temp = convInter(x.data, egoNets[0].edge_index.to(device).data).data
-        for i, ego in enumerate(egoNets):
-            if i == 0:
-                continue
-            output_temp = output_temp + convInter(x.data, ego.edge_index.to(device).data).data
-            torch.cuda.empty_cache()
-        output_temp = output_temp * (1 / len(egoNets))
-        output = output_temp.to(device)
-        #output = convIntra(output, edge_index_in.to(device).data)
-        torch.cuda.empty_cache()
-        return output
- 
-    def forward(self, x_in, edge_index_in):
-        x = x_in.to(device)
-        x = x + self.do_conv(x, self.conv1Inter, self.conv1Intra, edge_index_in)
-        x = self.conv1Intra(x, edge_index_in.to(device))
-        torch.cuda.empty_cache()
-        x = F.relu(x)
-        x = x + self.do_conv(x, self.conv2Inter, self.conv2Intra, edge_index_in)
-        x = self.conv2Intra(x, edge_index_in.to(device))
-        torch.cuda.empty_cache()
-        return F.log_softmax(x, dim=1)
 tests = []
 TEST_NUM = 2
 EPOCH_NUM = 100
 for test in range(TEST_NUM):
-    model = Net().to(device)
+    model = EgoGNN().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=1e-5)
     for epoch in range(EPOCH_NUM):
         print(epoch)
