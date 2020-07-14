@@ -20,7 +20,7 @@ from torch_scatter import scatter_add
 from torch_geometric.nn import GCNConv, GATConv, GINConv, pool, SAGEConv
 from ./utils/helpers import has_num, reindex_edgeindex, get_adj, to_sparse
 from ./model/ego_gnn import EgoGNN
-from ./EGONETCONFIG import current_dataset
+from ./EGONETCONFIG import current_dataset, test_nums_in, epochs_in
 
 DATASET = current_dataset['name']
 print('We are using the dataset: ' + DATASET)
@@ -92,8 +92,8 @@ print("Done 4")
 #train_loader = ClusterLoader(train_loader, batch_size=2, shuffle=True, num_workers=12)
 
 tests = []
-TEST_NUM = 2
-EPOCH_NUM = 100
+TEST_NUM = test_nums_in
+EPOCH_NUM = epochs_in
 for test in range(TEST_NUM):
     if DATASET == "Karate Club":
         model = EgoGNN(egoNets, device, 2).to(device)
