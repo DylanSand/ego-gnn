@@ -1,6 +1,9 @@
 print('Begin Python')
 import torch
 print('CUDA version is: ' + str(torch.version.cuda))
+import sys
+sys.path.insert(1, './utils')
+sys.path.insert(1, './model')
 import numpy as np
 import os.path as osp
 import torch.nn.functional as F
@@ -18,14 +21,13 @@ from torch_geometric.data import NeighborSampler, Data, ClusterData, ClusterLoad
 import torch.nn as nern
 from torch_scatter import scatter_add
 from torch_geometric.nn import GCNConv, GATConv, GINConv, pool, SAGEConv
-from utils/helpers import has_num, reindex_edgeindex, get_adj, to_sparse
-from model/ego_gnn import EgoGNN
+from helpers import has_num, reindex_edgeindex, get_adj, to_sparse
+from ego_gnn import EgoGNN
 from EGONETCONFIG import current_dataset, test_nums_in, epochs_in
 
 DATASET = current_dataset['name']
 print('We are using the dataset: ' + DATASET)
 input_path = ''
-import sys
 import getopt
 opts, args = getopt.getopt(sys.argv[1:],"d:",["input_path="])
 for opt, arg in opts:
@@ -50,7 +52,7 @@ elif DATASET == "Reddit":
 
 # ---------------------------------------------------------------
 print("Done 2")
- 
+
 graph = real_data[0]
 #graph = five_data
 graph.edge_index = to_undirected(graph.edge_index, graph.num_nodes)
@@ -96,9 +98,9 @@ TEST_NUM = test_nums_in
 EPOCH_NUM = epochs_in
 for test in range(TEST_NUM):
     if DATASET == "Karate Club":
-        model = EgoGNN(egoNets, device, 2).to(device)
+        model = EgoGNN(egoNets, device, 2, graph.x.shape[1]).to(device)
     else:
-        model = EgoGNN(egoNets, device, real_data.num_classes).to(device)
+        model = EgoGNN(egoNets, device, real_data.num_classes, graph.x.shape[1]).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=1e-5)
     for epoch in range(EPOCH_NUM):
         print(epoch)
