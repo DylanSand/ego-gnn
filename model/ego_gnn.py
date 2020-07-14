@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch_geometric.nn import GCNConv, GATConv, GINConv, pool, SAGEConv
-from ./../EGONETCONFIG import hidden_sizes, layer_design
+from EGONETCONFIG import hidden_sizes, layer_design
  
 class EgoGNN(torch.nn.Module):
     def __init__(self, egoNets, device, num_out):

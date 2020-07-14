@@ -18,9 +18,9 @@ from torch_geometric.data import NeighborSampler, Data, ClusterData, ClusterLoad
 import torch.nn as nern
 from torch_scatter import scatter_add
 from torch_geometric.nn import GCNConv, GATConv, GINConv, pool, SAGEConv
-from ./utils/helpers import has_num, reindex_edgeindex, get_adj, to_sparse
-from ./model/ego_gnn import EgoGNN
-from ./EGONETCONFIG import current_dataset, test_nums_in, epochs_in
+from utils/helpers import has_num, reindex_edgeindex, get_adj, to_sparse
+from model/ego_gnn import EgoGNN
+from EGONETCONFIG import current_dataset, test_nums_in, epochs_in
 
 DATASET = current_dataset['name']
 print('We are using the dataset: ' + DATASET)
