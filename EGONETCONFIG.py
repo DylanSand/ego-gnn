@@ -17,4 +17,10 @@ layer_design = [
 
 test_nums_in = 1
 
-epochs_in = 60
+train_mask_percent = 0.1
+
+val_mask_percent = 0.4
+
+burnout_num = 20
+
+training_stop_limit = 5

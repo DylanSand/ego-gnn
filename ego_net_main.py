@@ -23,7 +23,7 @@ from torch_scatter import scatter_add
 from torch_geometric.nn import GCNConv, GATConv, GINConv, pool, SAGEConv
 from helpers import has_num, reindex_edgeindex, get_adj, to_sparse
 from ego_gnn import EgoGNN
-from EGONETCONFIG import current_dataset, test_nums_in, epochs_in
+from EGONETCONFIG import current_dataset, test_nums_in, train_mask_percent, val_mask_percent, burnout_num, training_stop_limit
 import pickle
 
 DATASET = current_dataset['name']
@@ -83,8 +83,8 @@ for batch_size, n_id, adj in batches:
 # ---------------------------------------------------------------
 print("Done 3")
  
-TRAIN_PERCENT = 0.1
-VAL_PERCENT = 0.4
+TRAIN_PERCENT = train_mask_percent
+VAL_PERCENT = val_mask_percent
 
 TEST_PERCENT = 1.0 - (TRAIN_PERCENT + VAL_PERCENT)
 cur_total = int(graph.num_nodes)
@@ -110,8 +110,8 @@ print("Done 4")
 
 tests = []
 TEST_NUM = test_nums_in
-BURNOUT = 20
-TRAINING_STOP_LIMIT = 5
+BURNOUT = burnout_num
+TRAINING_STOP_LIMIT = training_stop_limit
 for test in range(TEST_NUM):
     if DATASET == "Karate Club":
         model = EgoGNN(egoNets, device, 2, graph.x.shape[1]).to(device)

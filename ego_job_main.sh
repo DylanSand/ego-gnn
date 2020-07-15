@@ -4,9 +4,10 @@
 #SBATCH --gres=gpu:1                          # Ask for 1 GPU
 #SBATCH --mem=40G                             # Ask for 40 GB of RAM
 #SBATCH --time=30:00                        # The job will run for 1 hour
-#SBATCH -o /network/tmp1/dylan.sandfelder/slurm-%j.out  # Write the log on tmp1
-
+#SBATCH -o /home/mila/d/dylan.sandfelder/slurm-%j/log.out  # Write the log on tmp1
 # ----------------------
+
+mkdir /home/mila/d/dylan.sandfelder/slurm-%j
 
 echo "Loading modules..."
 
@@ -64,3 +65,5 @@ echo "Launching python script..."
 # 4. Launch your job, tell it to save the model in $SLURM_TMPDIR
 #    and look for the dataset into $SLURM_TMPDIR
 python3 /home/mila/d/dylan.sandfelder/ego-gnn/ego_net_main.py --input_path $SLURM_TMPDIR
+
+cp $SLURM_TMPDIR/model.p /home/mila/d/dylan.sandfelder/slurm-%j/
