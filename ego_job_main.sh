@@ -57,7 +57,7 @@ pip3 install --no-cache-dir torch-geometric
 echo "Now copying data..."
 
 # 3. Copy your dataset on the compute node
-cp -r /home/mila/d/dylan.sandfelder/Reddit $SLURM_TMPDIR
+cp -r /home/mila/d/dylan.sandfelder/Cora $SLURM_TMPDIR
 
 echo "Launching python script..."
 

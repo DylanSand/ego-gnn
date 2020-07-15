@@ -168,6 +168,7 @@ for test in range(TEST_NUM):
                 pickle.dump(model, f)
                 f.close()
                 training_counter = 0
+                best_score = cur_acc
         cur_epoch = cur_epoch + 1
     model.eval()
     _, pred = model(graph.x, graph.edge_index).max(dim=1)
