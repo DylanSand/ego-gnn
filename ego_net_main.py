@@ -24,6 +24,7 @@ from torch_geometric.nn import GCNConv, GATConv, GINConv, pool, SAGEConv
 from helpers import has_num, reindex_edgeindex, get_adj, to_sparse
 from ego_gnn import EgoGNN
 from EGONETCONFIG import current_dataset, test_nums_in, epochs_in
+import pickle
 
 DATASET = current_dataset['name']
 print('We are using the dataset: ' + DATASET)
@@ -83,13 +84,23 @@ for batch_size, n_id, adj in batches:
 print("Done 3")
  
 TRAIN_PERCENT = 0.1
+VAL_PERCENT = 0.4
+
+TEST_PERCENT = 1.0 - (TRAIN_PERCENT + VAL_PERCENT)
 cur_total = int(graph.num_nodes)
 num_train = int(float(int(cur_total)) * TRAIN_PERCENT)
-train_mask = torch.tensor(np.array([False] * cur_total))
-test_mask = torch.tensor(np.array([True] * cur_total))
-for chosen in np.random.choice(cur_total, num_train):
-    train_mask[chosen] = True
-    test_mask[chosen] = False
+num_val = int(float(int(cur_total)) * VAL_PERCENT)
+train_mask = torch.tensor(np.array([True] * cur_total))
+val_mask = torch.tensor(np.array([False] * cur_total))
+test_mask = torch.tensor(np.array([False] * cur_total))
+chosen_not_train = np.random.choice(cur_total, cur_total - num_train, replace=False)
+for cur_index in chosen_not_train:
+    train_mask[cur_index] = False
+    test_mask[cur_index] = True
+chosen_val = np.random.choice(chosen_not_train, num_val, replace=False)
+for cur_index in chosen_val:
+    val_mask[cur_index] = True
+    test_mask[cur_index] = False
  
 # ---------------------------------------------------------------
 print("Done 4")
@@ -99,17 +110,21 @@ print("Done 4")
 
 tests = []
 TEST_NUM = test_nums_in
-EPOCH_NUM = epochs_in
+BURNOUT = 20
+TRAINING_STOP_LIMIT = 5
 for test in range(TEST_NUM):
     if DATASET == "Karate Club":
         model = EgoGNN(egoNets, device, 2, graph.x.shape[1]).to(device)
     else:
         model = EgoGNN(egoNets, device, real_data.num_classes, graph.x.shape[1]).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=1e-5)
-    for epoch in range(EPOCH_NUM):
-        print(epoch)
+    cur_epoch = 1
+    training_done = False
+    best_score = None
+    training_counter = 0
+    while(not training_done):
+        print(cur_epoch)
         torch.cuda.empty_cache()
-
         # USE NO BATCHING:
         model.train()
         optimizer.zero_grad()
@@ -127,6 +142,33 @@ for test in range(TEST_NUM):
         #    loss.backward()
         #    optimizer.step()
         #    torch.cuda.empty_cache()
+        if cur_epoch <= BURNOUT:
+            f = open("model.p", "wb")
+            pickle.dump(model, f)
+            f.close()
+            model.eval()
+            _, pred = model(graph.x, graph.edge_index).max(dim=1)
+            correct = float (pred[val_mask].eq(graph.y.to(device)[val_mask]).sum().item())
+            best_score = correct / val_mask.sum().item()
+        else:
+            model.eval()
+            _, pred = model(graph.x, graph.edge_index).max(dim=1)
+            correct = float (pred[val_mask].eq(graph.y.to(device)[val_mask]).sum().item())
+            cur_acc = correct / val_mask.sum().item()
+            if cur_acc < best_score:
+                if training_counter > TRAINING_STOP_LIMIT:
+                    f = open("model.p", "rb")
+                    model = pickle.load(f)
+                    f.close()
+                    training_done = True
+                else:
+                    training_counter = training_counter + 1
+            else:
+                f = open("model.p", "wb")
+                pickle.dump(model, f)
+                f.close()
+                training_counter = 0
+        cur_epoch = cur_epoch + 1
     model.eval()
     _, pred = model(graph.x, graph.edge_index).max(dim=1)
     correct = float (pred[test_mask].eq(graph.y.to(device)[test_mask]).sum().item())
