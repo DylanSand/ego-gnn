@@ -16,7 +16,7 @@ from tqdm import tqdm
 import pandas as pd
 from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import add_self_loops, degree, erdos_renyi_graph, to_networkx, to_undirected, subgraph, to_dense_adj, remove_self_loops
-from torch_geometric.datasets import Planetoid, Reddit, KarateClub, SNAPDataset
+from torch_geometric.datasets import Amazon, Planetoid, Reddit, KarateClub, SNAPDataset
 from torch_geometric.data import NeighborSampler, Data, ClusterData, ClusterLoader
 import torch.nn as nern
 from torch_scatter import scatter_add
@@ -47,7 +47,11 @@ if DATASET == "Karate Club":
 elif DATASET == "Cora" or DATASET == "Citeseer" or DATASET == "Pubmed":
     real_data = Planetoid(root=input_path, name=DATASET)
 elif DATASET == "Reddit":
-    real_data = Reddit()
+    real_data = Reddit(root=input_path)
+elif DATASET == "Amazon Computers":
+    real_data = Amazon(root=input_path, name="Computers")
+elif DATASET == "Amazon Photos":
+    real_data = Amazon(root=input_path, name="Photo")
 
 
 # ---------------------------------------------------------------
