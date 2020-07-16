@@ -23,7 +23,7 @@ from torch_scatter import scatter_add
 from torch_geometric.nn import GCNConv, GATConv, GINConv, pool, SAGEConv
 from helpers import has_num, reindex_edgeindex, get_adj, to_sparse
 from ego_gnn import EgoGNN
-from EGONETCONFIG import current_dataset, test_nums_in, train_mask_percent, val_mask_percent, burnout_num, training_stop_limit
+from EGONETCONFIG import current_dataset, test_nums_in, train_mask_percent, val_mask_percent, burnout_num, training_stop_limit, epoch_limit
 import pickle
 
 DATASET = current_dataset['name']
@@ -112,6 +112,7 @@ tests = []
 TEST_NUM = test_nums_in
 BURNOUT = burnout_num
 TRAINING_STOP_LIMIT = training_stop_limit
+EPOCH_LIMIT = epoch_limit
 for test in range(TEST_NUM):
     if DATASET == "Karate Club":
         model = EgoGNN(egoNets, device, 2, graph.x.shape[1]).to(device)
@@ -123,7 +124,7 @@ for test in range(TEST_NUM):
     best_score = None
     training_counter = 0
     while(not training_done):
-        print(cur_epoch)
+        print('Epoch: ' + str(cur_epoch))
         torch.cuda.empty_cache()
         # USE NO BATCHING:
         model.train()
@@ -143,6 +144,7 @@ for test in range(TEST_NUM):
         #    optimizer.step()
         #    torch.cuda.empty_cache()
         if cur_epoch <= BURNOUT:
+            print('     We are in BURNOUT')
             f = open("model.p", "wb")
             pickle.dump(model, f)
             f.close()
@@ -155,8 +157,16 @@ for test in range(TEST_NUM):
             _, pred = model(graph.x, graph.edge_index).max(dim=1)
             correct = float (pred[val_mask].eq(graph.y.to(device)[val_mask]).sum().item())
             cur_acc = correct / val_mask.sum().item()
+            print('     Current Acc: ' + str(cur_acc))
+            print('     Best Acc:    ' + str(best_score))
+            if cur_epoch > EPOCH_LIMIT:
+                print('          We have hit the epoch limit.')
+                training_done = True
             if cur_acc < best_score:
+                print('          We did worse.')
+                print('          Current counter: ' + str(training_counter))
                 if training_counter > TRAINING_STOP_LIMIT:
+                    print('          We are done now.')
                     f = open("model.p", "rb")
                     model = pickle.load(f)
                     f.close()
@@ -164,6 +174,7 @@ for test in range(TEST_NUM):
                 else:
                     training_counter = training_counter + 1
             else:
+                print('          We did better!')
                 f = open("model.p", "wb")
                 pickle.dump(model, f)
                 f.close()
@@ -176,4 +187,4 @@ for test in range(TEST_NUM):
     acc = correct / test_mask.sum().item()
     print('Accuracy: {:.4f}'.format(acc))
     tests.append(acc)
-print('Average is: ' + str(sum(tests) / len(tests)))
+print('Average of ' + str(len(tests)) + ' tests is: ' + str(sum(tests) / len(tests)))

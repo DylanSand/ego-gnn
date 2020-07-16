@@ -7,7 +7,7 @@
 #SBATCH -o /home/mila/d/dylan.sandfelder/slurm-%j/log.out  # Write the log on tmp1
 # ----------------------
 
-mkdir /home/mila/d/dylan.sandfelder/slurm-%j
+rm /home/mila/d/dylan.sandfelder/ego-gnn/model.p
 
 echo "Loading modules..."
 
@@ -65,5 +65,3 @@ echo "Launching python script..."
 # 4. Launch your job, tell it to save the model in $SLURM_TMPDIR
 #    and look for the dataset into $SLURM_TMPDIR
 python3 /home/mila/d/dylan.sandfelder/ego-gnn/ego_net_main.py --input_path $SLURM_TMPDIR
-
-cp $SLURM_TMPDIR/model.p /home/mila/d/dylan.sandfelder/slurm-%j/
