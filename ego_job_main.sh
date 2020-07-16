@@ -26,6 +26,9 @@ pip3 install --no-cache-dir torch==1.5.0+cu101 torchvision==0.6.0+cu101 -f https
 pip3 install --no-cache-dir torch-scatter==latest+cu101 torch-sparse==latest+cu101 torch-spline-conv==latest+cu101 torch-cluster==latest+cu101 -f https://pytorch-geometric.com/whl/torch-1.5.0.html
 pip3 install --no-cache-dir torch-geometric
 
+pip3 install ogb
+
+pip3 install wandb
 
 # ----------------------
 
@@ -58,7 +61,11 @@ pip3 install --no-cache-dir torch-geometric
 echo "Now copying data..."
 
 # 3. Copy your dataset on the compute node
-cp -r /home/mila/d/dylan.sandfelder/AmazonPhotos $SLURM_TMPDIR
+cp -r /home/mila/d/dylan.sandfelder/Pubmed $SLURM_TMPDIR
+
+echo "Logging in to W and B"
+
+wandb login 393993fdf806bf8728a51ec00b7d1a114ce36a42
 
 echo "Launching python script..."
 

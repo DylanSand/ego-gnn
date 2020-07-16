@@ -16,7 +16,7 @@ from tqdm import tqdm
 import pandas as pd
 from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import add_self_loops, degree, erdos_renyi_graph, to_networkx, to_undirected, subgraph, to_dense_adj, remove_self_loops
-from torch_geometric.datasets import Amazon, Planetoid, Reddit, KarateClub, SNAPDataset
+from torch_geometric.datasets import Amazon, Planetoid, Reddit, KarateClub, SNAPDataset, Flickr
 from torch_geometric.data import NeighborSampler, Data, ClusterData, ClusterLoader
 import torch.nn as nern
 from torch_scatter import scatter_add
@@ -25,6 +25,9 @@ from helpers import has_num, reindex_edgeindex, get_adj, to_sparse
 from ego_gnn import EgoGNN
 from EGONETCONFIG import current_dataset, test_nums_in, train_mask_percent, val_mask_percent, burnout_num, training_stop_limit, epoch_limit
 import pickle
+import wandb
+
+wandb.init(project="ego-net")
 
 DATASET = current_dataset['name']
 print('We are using the dataset: ' + DATASET)
@@ -40,6 +43,7 @@ print(input_path)
  
 # ---------------------------------------------------------------
 print("Done 1")
+wandb.log({'action': 'Done 1'})
  
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 real_data = None
@@ -53,10 +57,13 @@ elif DATASET == "Amazon Computers":
     real_data = Amazon(root=input_path, name="Computers")
 elif DATASET == "Amazon Photos":
     real_data = Amazon(root=input_path, name="Photo")
+elif DATASET == "Flickr":
+    real_data = Flickr(root=input_path)
 
 
 # ---------------------------------------------------------------
 print("Done 2")
+wandb.log({'action': 'Done 2'})
 
 graph = real_data[0]
 #graph = five_data
@@ -82,6 +89,7 @@ for batch_size, n_id, adj in batches:
  
 # ---------------------------------------------------------------
 print("Done 3")
+wandb.log({'action': 'Done 3'})
  
 TRAIN_PERCENT = train_mask_percent
 VAL_PERCENT = val_mask_percent
@@ -104,6 +112,7 @@ for cur_index in chosen_val:
  
 # ---------------------------------------------------------------
 print("Done 4")
+wandb.log({'action': 'Done 4'})
 
 #train_loader = ClusterData(graph, num_parts=int(graph.num_nodes / 10), recursive=False)
 #train_loader = ClusterLoader(train_loader, batch_size=2, shuffle=True, num_workers=12)
@@ -123,8 +132,10 @@ for test in range(TEST_NUM):
     training_done = False
     best_score = None
     training_counter = 0
+    wandb.watch(model)
     while(not training_done):
         print('Epoch: ' + str(cur_epoch))
+        wandb.log({'action': 'Epoch: ' + str(cur_epoch)})
         torch.cuda.empty_cache()
         # USE NO BATCHING:
         model.train()
@@ -152,11 +163,13 @@ for test in range(TEST_NUM):
             _, pred = model(graph.x, graph.edge_index).max(dim=1)
             correct = float (pred[val_mask].eq(graph.y.to(device)[val_mask]).sum().item())
             best_score = correct / val_mask.sum().item()
+            wandb.log({'epoch': cur_epoch, 'val-accuracy': best_score})
         else:
             model.eval()
             _, pred = model(graph.x, graph.edge_index).max(dim=1)
             correct = float (pred[val_mask].eq(graph.y.to(device)[val_mask]).sum().item())
             cur_acc = correct / val_mask.sum().item()
+            wandb.log({'epoch': cur_epoch, 'val-accuracy': cur_acc})
             print('     Current Acc: ' + str(cur_acc))
             print('     Best Acc:    ' + str(best_score))
             if cur_epoch > EPOCH_LIMIT:
@@ -188,3 +201,5 @@ for test in range(TEST_NUM):
     print('Accuracy: {:.4f}'.format(acc))
     tests.append(acc)
 print('Average of ' + str(len(tests)) + ' tests is: ' + str(sum(tests) / len(tests)))
+
+torch.save(model.state_dict(), osp.join(wandb.run.dir, 'model.p'))
