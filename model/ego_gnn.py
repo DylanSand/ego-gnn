@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 from torch_geometric.nn import GCNConv, GATConv, GINConv, pool, SAGEConv
 import torch_sparse
-from EGONETCONFIG import hidden_sizes, layer_design
+from EGONETCONFIG import hidden_sizes, layer_design, relus
  
 class EgoGNN(torch.nn.Module):
     def __init__(self, egoNets, device, num_out, num_feat):
@@ -77,18 +77,22 @@ class EgoGNN(torch.nn.Module):
             x = self.do_conv(x)
             x = self.conv1Inter(x)
             torch.cuda.empty_cache()
-        #x = F.relu(x)
+        if relus[0]:
+            x = F.relu(x)
         if layer_design[0][1] != None:
             x = self.conv1Intra(x, edge_index_in.to(self.device))
             torch.cuda.empty_cache()
-        x = F.relu(x)
+        if relus[1]:
+            x = F.relu(x)
         if layer_design[1][0] == "Ego":
             x = self.do_conv(x)
             x = self.conv2Inter(x)
             torch.cuda.empty_cache()
-        #x = F.relu(x)
+        if relus[2]:
+            x = F.relu(x)
         if layer_design[1][1] != None:
             x = self.conv2Intra(x, edge_index_in.to(self.device))
             torch.cuda.empty_cache()
-        #x = F.relu(x)
+        if relus[3]:
+            x = F.relu(x)
         return F.log_softmax(x, dim=1)

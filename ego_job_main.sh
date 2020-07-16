@@ -58,10 +58,12 @@ pip3 install --no-cache-dir torch-geometric
 echo "Now copying data..."
 
 # 3. Copy your dataset on the compute node
-cp -r /home/mila/d/dylan.sandfelder/Cora $SLURM_TMPDIR
+cp -r /home/mila/d/dylan.sandfelder/AmazonPhotos $SLURM_TMPDIR
 
 echo "Launching python script..."
 
 # 4. Launch your job, tell it to save the model in $SLURM_TMPDIR
 #    and look for the dataset into $SLURM_TMPDIR
 python3 /home/mila/d/dylan.sandfelder/ego-gnn/ego_net_main.py --input_path $SLURM_TMPDIR
+
+cat /home/mila/d/dylan.sandfelder/ego-gnn/EGONETCONFIG.py
