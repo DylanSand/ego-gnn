@@ -26,6 +26,7 @@ from ego_gnn import EgoGNN
 from EGONETCONFIG import current_dataset, test_nums_in, train_mask_percent, val_mask_percent, burnout_num, training_stop_limit, epoch_limit
 import pickle
 import wandb
+from ogb.nodeproppred import PygNodePropPredDataset
 
 wandb.init(project="ego-net")
 
@@ -59,6 +60,9 @@ elif DATASET == "Amazon Photos":
     real_data = Amazon(root=input_path, name="Photo")
 elif DATASET == "Flickr":
     real_data = Flickr(root=input_path)
+elif DATASET == "OGB Products":
+    real_data = PygNodePropPredDataset(name='ogbn-products')
+    split_idx = real_data.get_idx_split()
 
 
 # ---------------------------------------------------------------
@@ -109,6 +113,17 @@ chosen_val = np.random.choice(chosen_not_train, num_val, replace=False)
 for cur_index in chosen_val:
     val_mask[cur_index] = True
     test_mask[cur_index] = False
+
+if DATASET == "OGB Products":
+    for key, idx in split_idx.items():
+        mask = torch.zeros(data.num_nodes, dtype=torch.bool)
+        mask[idx] = True
+        if key == "train":
+            train_mask = mask
+        if key == "valid":
+            val_mask = mask
+        if key == "test":
+            test_mask = mask
  
 # ---------------------------------------------------------------
 print("Done 4")

@@ -52,7 +52,8 @@ pip3 install wandb
 #pip install --no-cache-dir torch-scatter==latest+cu101 torch-sparse==latest+cu101 torch-spline-conv==latest+cu101 torch-cluster==latest+cu101 -f https://pytorch-geometric.com/whl/torch-1.4.0.html
 #pip install --no-cache-dir torch-geometric
 #pip install torch==1.4.0+cu100 torchvision==0.5.0+cu100 -f https://download.pytorch.org/whl/torch_stable.html
-#pip install torch-scatter==2.0.2 -f https://pytorch-geometric.com/whl/torch-1.4.0.html
+#pip 
+install torch-scatter==2.0.2 -f https://pytorch-geometric.com/whl/torch-1.4.0.html
 #pip install torch-sparse==0.4.4 -f https://pytorch-geometric.com/whl/torch-1.4.0.html
 #pip install torch-cluster==1.4.5 -f https://pytorch-geometric.com/whl/torch-1.4.0.html
 #pip install torch-spline-conv==1.1.1 -f https://pytorch-geometric.com/whl/torch-1.4.0.html
@@ -61,7 +62,7 @@ pip3 install wandb
 echo "Now copying data..."
 
 # 3. Copy your dataset on the compute node
-cp -r /home/mila/d/dylan.sandfelder/Pubmed $SLURM_TMPDIR
+cp -r ~/OGBProducts $SLURM_TMPDIR
 
 echo "Logging in to W and B"
 
@@ -71,6 +72,6 @@ echo "Launching python script..."
 
 # 4. Launch your job, tell it to save the model in $SLURM_TMPDIR
 #    and look for the dataset into $SLURM_TMPDIR
-python3 /home/mila/d/dylan.sandfelder/ego-gnn/ego_net_main.py --input_path $SLURM_TMPDIR
+python3 ~/ego-gnn/ego_net_main.py --input_path $SLURM_TMPDIR
 
-cat /home/mila/d/dylan.sandfelder/ego-gnn/EGONETCONFIG.py
+cat ~/ego-gnn/EGONETCONFIG.py
