@@ -7,7 +7,7 @@
 #SBATCH -o /home/mila/d/dylan.sandfelder/slurm-%j/log.out  # Write the log on tmp1
 # ----------------------
 
-rm /home/mila/d/dylan.sandfelder/ego-gnn/model.p
+rm ~/ego-gnn/model.p
 
 echo "Loading modules..."
 
@@ -29,6 +29,8 @@ pip3 install --no-cache-dir torch-geometric
 pip3 install ogb
 
 pip3 install wandb
+
+pip3 install -U scikit-learn
 
 # ----------------------
 
@@ -52,8 +54,7 @@ pip3 install wandb
 #pip install --no-cache-dir torch-scatter==latest+cu101 torch-sparse==latest+cu101 torch-spline-conv==latest+cu101 torch-cluster==latest+cu101 -f https://pytorch-geometric.com/whl/torch-1.4.0.html
 #pip install --no-cache-dir torch-geometric
 #pip install torch==1.4.0+cu100 torchvision==0.5.0+cu100 -f https://download.pytorch.org/whl/torch_stable.html
-#pip 
-install torch-scatter==2.0.2 -f https://pytorch-geometric.com/whl/torch-1.4.0.html
+#pip install torch-scatter==2.0.2 -f https://pytorch-geometric.com/whl/torch-1.4.0.html
 #pip install torch-sparse==0.4.4 -f https://pytorch-geometric.com/whl/torch-1.4.0.html
 #pip install torch-cluster==1.4.5 -f https://pytorch-geometric.com/whl/torch-1.4.0.html
 #pip install torch-spline-conv==1.1.1 -f https://pytorch-geometric.com/whl/torch-1.4.0.html
@@ -62,7 +63,7 @@ install torch-scatter==2.0.2 -f https://pytorch-geometric.com/whl/torch-1.4.0.ht
 echo "Now copying data..."
 
 # 3. Copy your dataset on the compute node
-cp -r ~/OGBProducts $SLURM_TMPDIR
+cp -r ~/ego-gnn/OGBProducts $SLURM_TMPDIR
 
 echo "Logging in to W and B"
 

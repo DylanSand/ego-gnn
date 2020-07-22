@@ -27,6 +27,7 @@ from EGONETCONFIG import current_dataset, test_nums_in, train_mask_percent, val_
 import pickle
 import wandb
 from ogb.nodeproppred import PygNodePropPredDataset
+from sklearn.metrics import f1_score
 
 wandb.init(project="ego-net")
 
@@ -132,7 +133,9 @@ wandb.log({'action': 'Done 4'})
 #train_loader = ClusterData(graph, num_parts=int(graph.num_nodes / 10), recursive=False)
 #train_loader = ClusterLoader(train_loader, batch_size=2, shuffle=True, num_workers=12)
 
-tests = []
+tests_acc = []
+tests_f1_macro = []
+tests_f1_micro = []
 TEST_NUM = test_nums_in
 BURNOUT = burnout_num
 TRAINING_STOP_LIMIT = training_stop_limit
@@ -214,7 +217,15 @@ for test in range(TEST_NUM):
     correct = float (pred[test_mask].eq(graph.y.to(device)[test_mask]).sum().item())
     acc = correct / test_mask.sum().item()
     print('Accuracy: {:.4f}'.format(acc))
-    tests.append(acc)
-print('Average of ' + str(len(tests)) + ' tests is: ' + str(sum(tests) / len(tests)))
+    tests_acc.append(acc)
+    macro_score = f1_score(graph.y.to(device)[test_mask], pred[test_mask], average='macro')
+    print('Macro score is: ' + str(macro_score))
+    micro_score = f1_score(graph.y.to(device)[test_mask], pred[test_mask], average='micro')
+    print('Micro score is: ' + str(micro_score))
+    tests_f1_macro.append(macro_score)
+    tests_f1_micro.append(micro_score)
+print('Average of ' + str(len(tests_acc)) + ' tests_acc is: ' + str(sum(tests_acc) / len(tests_acc)))
+print('Full macro: ' + str(tests_f1_macro))
+print('Full micro: ' + str(tests_f1_micro))
 
 torch.save(model.state_dict(), osp.join(wandb.run.dir, 'model.p'))
