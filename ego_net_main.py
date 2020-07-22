@@ -23,11 +23,13 @@ from torch_scatter import scatter_add
 from torch_geometric.nn import GCNConv, GATConv, GINConv, pool, SAGEConv
 from helpers import has_num, reindex_edgeindex, get_adj, to_sparse
 from ego_gnn import EgoGNN
-from EGONETCONFIG import current_dataset, test_nums_in, train_mask_percent, val_mask_percent, burnout_num, training_stop_limit, epoch_limit
+from EGONETCONFIG import current_dataset, test_nums_in, labeled_data, val_split, burnout_num, training_stop_limit, epoch_limit, numpy_seed, torch_seed
 import pickle
 import wandb
 from ogb.nodeproppred import PygNodePropPredDataset
 from sklearn.metrics import f1_score
+np.random.seed(numpy_seed)
+torch.manual_seed(torch_seed)
 
 wandb.init(project="ego-net")
 
@@ -91,44 +93,10 @@ for batch_size, n_id, adj in batches:
     subgraph2.coalesce()
     egoNets[curPlot] = subgraph2
     curPlot = curPlot + 1
- 
+
 # ---------------------------------------------------------------
 print("Done 3")
 wandb.log({'action': 'Done 3'})
- 
-TRAIN_PERCENT = train_mask_percent
-VAL_PERCENT = val_mask_percent
-
-TEST_PERCENT = 1.0 - (TRAIN_PERCENT + VAL_PERCENT)
-cur_total = int(graph.num_nodes)
-num_train = int(float(int(cur_total)) * TRAIN_PERCENT)
-num_val = int(float(int(cur_total)) * VAL_PERCENT)
-train_mask = torch.tensor(np.array([True] * cur_total))
-val_mask = torch.tensor(np.array([False] * cur_total))
-test_mask = torch.tensor(np.array([False] * cur_total))
-chosen_not_train = np.random.choice(cur_total, cur_total - num_train, replace=False)
-for cur_index in chosen_not_train:
-    train_mask[cur_index] = False
-    test_mask[cur_index] = True
-chosen_val = np.random.choice(chosen_not_train, num_val, replace=False)
-for cur_index in chosen_val:
-    val_mask[cur_index] = True
-    test_mask[cur_index] = False
-
-if DATASET == "OGB Products":
-    for key, idx in split_idx.items():
-        mask = torch.zeros(data.num_nodes, dtype=torch.bool)
-        mask[idx] = True
-        if key == "train":
-            train_mask = mask
-        if key == "valid":
-            val_mask = mask
-        if key == "test":
-            test_mask = mask
- 
-# ---------------------------------------------------------------
-print("Done 4")
-wandb.log({'action': 'Done 4'})
 
 #train_loader = ClusterData(graph, num_parts=int(graph.num_nodes / 10), recursive=False)
 #train_loader = ClusterLoader(train_loader, batch_size=2, shuffle=True, num_workers=12)
@@ -141,6 +109,37 @@ BURNOUT = burnout_num
 TRAINING_STOP_LIMIT = training_stop_limit
 EPOCH_LIMIT = epoch_limit
 for test in range(TEST_NUM):
+
+    # CREATE DATA SPLITS:
+    TRAIN_PERCENT = labeled_data - (labeled_data * val_split)
+    VAL_PERCENT = labeled_data * val_split
+    TEST_PERCENT = 1.0 - (TRAIN_PERCENT + VAL_PERCENT)
+    cur_total = int(graph.num_nodes)
+    num_train = int(float(int(cur_total)) * TRAIN_PERCENT)
+    num_val = int(float(int(cur_total)) * VAL_PERCENT)
+    train_mask = torch.tensor(np.array([True] * cur_total))
+    val_mask = torch.tensor(np.array([False] * cur_total))
+    test_mask = torch.tensor(np.array([False] * cur_total))
+    chosen_not_train = np.random.choice(cur_total, cur_total - num_train, replace=False)
+    for cur_index in chosen_not_train:
+        train_mask[cur_index] = False
+        test_mask[cur_index] = True
+    chosen_val = np.random.choice(chosen_not_train, num_val, replace=False)
+    for cur_index in chosen_val:
+        val_mask[cur_index] = True
+        test_mask[cur_index] = False
+    if DATASET == "OGB Products":
+        for key, idx in split_idx.items():
+            mask = torch.zeros(data.num_nodes, dtype=torch.bool)
+            mask[idx] = True
+            if key == "train":
+                train_mask = mask
+            if key == "valid":
+                val_mask = mask
+            if key == "test":
+                test_mask = mask
+
+    # RUN MODEL:
     if DATASET == "Karate Club":
         model = EgoGNN(egoNets, device, 2, graph.x.shape[1]).to(device)
     else:

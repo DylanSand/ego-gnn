@@ -25,12 +25,17 @@ relus = [True, True, False, False]
 
 test_nums_in = 4
 
-train_mask_percent = 0.1
+labeled_data = 0.5
 
-val_mask_percent = 0.4
+val_split = 0.2
 
 burnout_num = 40
 
 training_stop_limit = 6
 
 epoch_limit = 200
+
+numpy_seed = 42
+
+torch_seed = 71
+
