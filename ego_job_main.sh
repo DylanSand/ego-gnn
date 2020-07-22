@@ -63,7 +63,7 @@ pip3 install -U scikit-learn
 echo "Now copying data..."
 
 # 3. Copy your dataset on the compute node
-cp -r ~/ego-gnn/OGBProducts $SLURM_TMPDIR
+cp -r ~/ego-gnn/KarateClub $SLURM_TMPDIR
 
 echo "Logging in to W and B"
 
