@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 from torch_geometric.nn import GCNConv, GATConv, GINConv, pool, SAGEConv
 import torch_sparse
-from EGONETCONFIG import hidden_sizes, layer_design, relus
+from EGONETCONFIG import hidden_sizes, layer_design
  
 class EgoGNN(torch.nn.Module):
     def __init__(self, egoNets, device, num_out, num_feat):
@@ -70,10 +70,10 @@ class EgoGNN(torch.nn.Module):
             if layer[2]:
                 x = F.relu(x)
             if layer[1] == "GIN":
-                x = self.layers[curMod](x)
+                x = self.layers[curMod](x, edge_index_in.to(self.device))
                 curMod = curMod + 1
             if layer[1] == "GCN":
-                x = self.layers[curMod](x)
+                x = self.layers[curMod](x, edge_index_in.to(self.device))
                 curMod = curMod + 1
             if layer[3]:
                 x = F.relu(x)
