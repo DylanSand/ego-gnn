@@ -13,37 +13,25 @@ class EgoGNN(torch.nn.Module):
         self.egoNets = egoNets
         self.numNodes = len(self.egoNets)
         self.device = device
-
-        if layer_design[0][0] == "Ego":
-            self.conv1Inter = torch.nn.Linear(num_feat, num_feat)
-
-        if layer_design[0][1] == "GIN":
-            if hidden_sizes[1] == "out":
-                self.conv1Intra = GINConv(torch.nn.Linear(num_feat, num_out))
-            else:
-                self.conv1Intra = GINConv(torch.nn.Linear(num_feat, hidden_sizes[1]))
-        if layer_design[0][1] == "GCN":
-            if hidden_sizes[1] == "out":
-                self.conv1Intra = GCNConv(num_feat, num_out)
-            else:
-                self.conv1Intra = GCNConv(num_feat, hidden_sizes[1])
-
-        if layer_design[1][0] == "Ego":
-            if hidden_sizes[1] == "out":
-                self.conv2Inter = torch.nn.Linear(num_out, num_out)
-            else:
-                self.conv2Inter = torch.nn.Linear(hidden_sizes[1], hidden_sizes[1])
-
-        if layer_design[1][1] == "GIN":
-            if hidden_sizes[2] == "out":
-                self.conv2Intra = GINConv(torch.nn.Linear(hidden_sizes[1], num_out))
-            else:
-                self.conv1Intra = GINConv(torch.nn.Linear(hidden_sizes[1], hidden_sizes[2]))
-        if layer_design[1][1] == "GCN":
-            if hidden_sizes[2] == "out":
-                self.conv2Intra = GCNConv(hidden_sizes[1], num_out)
-            else:
-                self.conv2Intra = GCNConv(hidden_sizes[1], hidden_sizes[2])
+        modList = []
+        for i, layer in enumerate(layer_design):
+            input_num = hidden_sizes[i]
+            if input_num == "in":
+                input_num = num_feat
+            if input_num == "out":
+                input_num = num_out
+            output_num = hidden_sizes[i+1]
+            if output_num == "in":
+                output_num = num_feat
+            if output_num == "out":
+                output_num = num_out
+            if layer[0] == "Ego":
+                modList.append(torch.nn.Linear(input_num, input_num))
+            if layer[1] == "GIN":
+                modList.append(GINConv(torch.nn.Linear(input_num, output_num)))
+            if layer[1] == "GCN":
+                modList.append(GCNConv(input_num, output_num))
+        self.layers = torch.nn.ModuleList(modList)
 
     def do_conv(self, x):
         #orig = x.data.clone()
@@ -72,27 +60,21 @@ class EgoGNN(torch.nn.Module):
         return output
  
     def forward(self, x_in, edge_index_in):
+        curMod = 0
         x = x_in.to(self.device)
-        if layer_design[0][0] == "Ego":
-            x = self.do_conv(x)
-            x = self.conv1Inter(x)
-            torch.cuda.empty_cache()
-        if relus[0]:
-            x = F.relu(x)
-        if layer_design[0][1] != None:
-            x = self.conv1Intra(x, edge_index_in.to(self.device))
-            torch.cuda.empty_cache()
-        if relus[1]:
-            x = F.relu(x)
-        if layer_design[1][0] == "Ego":
-            x = self.do_conv(x)
-            x = self.conv2Inter(x)
-            torch.cuda.empty_cache()
-        if relus[2]:
-            x = F.relu(x)
-        if layer_design[1][1] != None:
-            x = self.conv2Intra(x, edge_index_in.to(self.device))
-            torch.cuda.empty_cache()
-        if relus[3]:
-            x = F.relu(x)
+        for i, layer in enumerate(layer_design):
+            if layer[0] == "Ego":
+                x = self.do_conv(x)
+                x = self.layers[curMod](x)
+                curMod = curMod + 1
+            if layer[2]:
+                x = F.relu(x)
+            if layer[1] == "GIN":
+                x = self.layers[curMod](x)
+                curMod = curMod + 1
+            if layer[1] == "GCN":
+                x = self.layers[curMod](x)
+                curMod = curMod + 1
+            if layer[3]:
+                x = F.relu(x)
         return F.log_softmax(x, dim=1)
