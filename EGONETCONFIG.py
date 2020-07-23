@@ -1,7 +1,7 @@
 from torch_geometric.datasets import Planetoid, Reddit, KarateClub, SNAPDataset
 
-#current_dataset = { "name": "Cora", "location": "Cora" }
-current_dataset = { "name": "Karate Club", "location": "KarateClub" }
+current_dataset = { "name": "Cora", "location": "Cora" }
+#current_dataset = { "name": "Karate Club", "location": "KarateClub" }
 #current_dataset = { "name": "Citeseer", "location": "Citeseer" }
 #current_dataset = { "name": "Pubmed", "location": "Pubmed" }
 #current_dataset = { "name": "Amazon Computers", "location": "AmazonComputers" }
@@ -14,28 +14,28 @@ hidden_sizes = ["in", 16, "out"]
 
 layer_design = [
     ["Ego", "GCN"],
-    [None, "GCN"]
+    ["Ego", "GCN"]
 ]
 
-relus = [True, True, False, False]
+relus = [True, True, True, False]
 
 #        R        R         R       R    
-#  [Ego -> GCN]       [None -> GCN  ]
-#5      ->       16         ->          7
+#   [Ego -> GCN]       [None -> GCN  ]
+# in      ->       16         ->        out
 
 test_nums_in = 4
 
 labeled_data = 0.5
 
-val_split = 0.2
+val_split = 0.3
 
-burnout_num = 40
+burnout_num = 100
 
-training_stop_limit = 6
+training_stop_limit = 9
 
-epoch_limit = 200
+epoch_limit = 500
 
-numpy_seed = 42
+numpy_seed = 47
 
-torch_seed = 71
+torch_seed = 74
 
