@@ -10,13 +10,15 @@ current_dataset = { "name": "Cora", "location": "Cora" }
 #current_dataset = { "name": "Flickr", "location": "Flickr" }
 #current_dataset = { "name": "OGB Products", "location": "OGBProducts" }
 
-hidden_sizes = ["in", 16, 32, "out"]
+hidden_sizes = ["in", 16, "out"]
 
 layer_design = [
-    [None, "GCN", False, True],
-    ["Ego", "GCN", True, True],
-    [None, "GCN", False, False]
+    ["Ego", "GCN", False, True],
+    ["Ego", "GCN", False, False]
 ]
+
+local_depth = 1
+local_power = 3
 
 #        R        R         R       R    
 #   [Ego -> GCN]       [None -> GCN  ]
