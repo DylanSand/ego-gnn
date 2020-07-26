@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 from torch_geometric.nn import GCNConv, GATConv, GINConv, pool, SAGEConv
 import torch_sparse
-from EGONETCONFIG import hidden_sizes, layer_design, local_depth
+from EGONETCONFIG import hidden_sizes, layer_design, local_depth, local_power
  
 class EgoGNN(torch.nn.Module):
     def __init__(self, egoNets, device, num_out, num_feat):
@@ -39,6 +39,8 @@ class EgoGNN(torch.nn.Module):
         #x = convInter[0](x, egoNets[0].edge_index.to(device).data)
         #print(torch.ones((egoNets[0].edge_index.shape[1])))
         output = torch_sparse.spmm(self.egoNets[0].edge_index.to(self.device), torch.ones((self.egoNets[0].edge_index.shape[1],)).to(self.device), self.numNodes, self.numNodes, x)
+        for power in range(local_power-1):
+            output = torch_sparse.spmm(self.egoNets[0].edge_index.to(self.device), torch.ones((self.egoNets[0].edge_index.shape[1],)).to(self.device), self.numNodes, self.numNodes, output)
         #output = convInter(x, egoNets[0].edge_index.to(device))
         for i, ego in enumerate(self.egoNets):
             if i == 0:
@@ -54,7 +56,10 @@ class EgoGNN(torch.nn.Module):
             #del cpu_x
             #torch.cuda.empty_cache()
             #output = output + convInter(x, ego.edge_index.to(device))
-            output = output + torch_sparse.spmm(ego.edge_index.to(self.device), torch.ones((ego.edge_index.shape[1],)).to(self.device), self.numNodes, self.numNodes, x)
+            temp_out = torch_sparse.spmm(ego.edge_index.to(self.device), torch.ones((ego.edge_index.shape[1],)).to(self.device), self.numNodes, self.numNodes, x)
+            for power in range(local_power-1):
+                temp_out = torch_sparse.spmm(ego.edge_index.to(self.device), torch.ones((ego.edge_index.shape[1],)).to(self.device), self.numNodes, self.numNodes, temp_out)
+            output = output + temp_out
         #x = x * (1 / len(egoNets))
         output = output * (1 / self.numNodes)
         torch.cuda.empty_cache()
