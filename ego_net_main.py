@@ -98,6 +98,16 @@ for batch_size, n_id, adj in batches:
 print("Done 3")
 wandb.log({'action': 'Done 3'})
 
+num_triangles = [0] * len(egoNets)
+print(egoNets[3].edge_index)
+return
+#for i, ego in enumerate(egoNets):
+#    
+
+# ---------------------------------------------------------------
+print("Done 4")
+wandb.log({'action': 'Done 4'})
+
 #train_loader = ClusterData(graph, num_parts=int(graph.num_nodes / 10), recursive=False)
 #train_loader = ClusterLoader(train_loader, batch_size=2, shuffle=True, num_workers=12)
 
