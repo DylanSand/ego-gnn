@@ -99,10 +99,14 @@ print("Done 3")
 wandb.log({'action': 'Done 3'})
 
 num_triangles = [0] * len(egoNets)
-print(egoNets[3].edge_index)
-return
-#for i, ego in enumerate(egoNets):
-#    
+for i, ego in enumerate(egoNets):
+    for edge_idx in range(ego.edge_index[0]):
+        if not (ego.edge_index[0][edge_idx] == i or ego.edge_index[1][edge_idx] == i):
+            num_triangles[i] = num_triangles[i] + 1
+    num_triangles[i] = num_triangles[i] / 2
+
+print(egoNets[20].edge_index)
+print(num_triangles[20])
 
 # ---------------------------------------------------------------
 print("Done 4")
