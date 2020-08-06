@@ -10,15 +10,17 @@ current_dataset = { "name": "Cora", "location": "Cora" }
 #current_dataset = { "name": "Flickr", "location": "Flickr" }
 #current_dataset = { "name": "OGB Products", "location": "OGBProducts" }
 
-hidden_sizes = ["in", 16, "out"]
+hidden_sizes = ["in", 16,  "out"]
 
 layer_design = [
-    ["Ego", "GCN", False, True],
-    ["Ego", "GCN", False, False]
+    [None, "GCN", False, True],
+    [None, "GCN", False, False]
 ]
 
 local_depth = 1
 local_power = 3
+
+count_triangles = True
 
 #        R        R         R       R    
 #   [Ego -> GCN]       [None -> GCN  ]
@@ -36,7 +38,7 @@ training_stop_limit = 9
 
 epoch_limit = 500
 
-numpy_seed = 47
+numpy_seed = 48
 
-torch_seed = 74
+torch_seed = 75
 

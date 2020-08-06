@@ -32,6 +32,10 @@ class EgoGNN(torch.nn.Module):
                 modList.append(GINConv(torch.nn.Linear(input_num, output_num)))
             if layer[1] == "GCN":
                 modList.append(GCNConv(input_num, output_num))
+            if layer[1] == "GAT":
+                modList.append(GATConv(input_num, output_num))
+            if layer[1] == "SAGE":
+                modList.append(SAGEConv(input_num, output_num))
         self.layers = torch.nn.ModuleList(modList)
 
     def do_conv(self, x):
@@ -80,6 +84,12 @@ class EgoGNN(torch.nn.Module):
                 x = self.layers[curMod](x, edge_index_in.to(self.device))
                 curMod = curMod + 1
             if layer[1] == "GCN":
+                x = self.layers[curMod](x, edge_index_in.to(self.device))
+                curMod = curMod + 1
+            if layer[1] == "GAT":
+                x = self.layers[curMod](x, edge_index_in.to(self.device))
+                curMod = curMod + 1
+            if layer[1] == "SAGE":
                 x = self.layers[curMod](x, edge_index_in.to(self.device))
                 curMod = curMod + 1
             if layer[3]:

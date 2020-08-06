@@ -23,7 +23,7 @@ from torch_scatter import scatter_add
 from torch_geometric.nn import GCNConv, GATConv, GINConv, pool, SAGEConv
 from helpers import has_num, reindex_edgeindex, get_adj, to_sparse
 from ego_gnn import EgoGNN
-from EGONETCONFIG import current_dataset, test_nums_in, labeled_data, val_split, burnout_num, training_stop_limit, epoch_limit, numpy_seed, torch_seed
+from EGONETCONFIG import current_dataset, count_triangles, test_nums_in, labeled_data, val_split, burnout_num, training_stop_limit, epoch_limit, numpy_seed, torch_seed
 import pickle
 import wandb
 from ogb.nodeproppred import PygNodePropPredDataset
@@ -98,15 +98,16 @@ for batch_size, n_id, adj in batches:
 print("Done 3")
 wandb.log({'action': 'Done 3'})
 
-num_triangles = [0] * len(egoNets)
-for i, ego in enumerate(egoNets):
-    for edge_idx in range(len(ego.edge_index[0])):
-        if not (ego.edge_index[0][edge_idx] == i or ego.edge_index[1][edge_idx] == i):
-            num_triangles[i] = num_triangles[i] + 1
-    num_triangles[i] = num_triangles[i] / 2
+if count_triangles:
+    num_triangles = [0] * len(egoNets)
+    for i, ego in enumerate(egoNets):
+        for edge_idx in range(len(ego.edge_index[0])):
+            if not (ego.edge_index[0][edge_idx] == i or ego.edge_index[1][edge_idx] == i or ego.edge_index[0][edge_idx] == ego.edge_index[1][edge_idx]):
+                num_triangles[i] = num_triangles[i] + 1
+        num_triangles[i] = int(num_triangles[i] / 2)
+    num_triangles = torch.tensor(num_triangles)
+    graph.y = num_triangles
 
-print(egoNets[20].edge_index)
-print(num_triangles[20])
 
 # ---------------------------------------------------------------
 print("Done 4")
