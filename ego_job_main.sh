@@ -62,8 +62,10 @@ pip3 install -U scikit-learn
 
 echo "Now copying data..."
 
+dataLocation=$(python3 ~/ego-gnn/getLocation.py)
+echo "Getting data from $HOME$dataLocation"
 # 3. Copy your dataset on the compute node
-cp -r ~/ego-gnn/Cora $SLURM_TMPDIR
+cp -r "$HOME$dataLocation" $SLURM_TMPDIR
 
 echo "Logging in to W and B"
 
@@ -74,6 +76,7 @@ echo "Presenting current configs:"
 cat ~/ego-gnn/EGONETCONFIG.py
 
 echo "Launching python script..."
+
 
 # 4. Launch your job, tell it to save the model in $SLURM_TMPDIR
 #    and look for the dataset into $SLURM_TMPDIR

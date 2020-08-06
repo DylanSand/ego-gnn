@@ -1,4 +1,3 @@
-from torch_geometric.datasets import Planetoid, Reddit, KarateClub, SNAPDataset
 
 current_dataset = { "name": "Cora", "location": "Cora" }
 #current_dataset = { "name": "Karate Club", "location": "KarateClub" }
@@ -13,8 +12,8 @@ current_dataset = { "name": "Cora", "location": "Cora" }
 hidden_sizes = ["in", 16,  "out"]
 
 layer_design = [
-    [None, "GCN", False, True],
-    [None, "GCN", False, False]
+    [None, "SAGE", False, True],
+    [None, "SAGE", False, False]
 ]
 
 local_depth = 1
@@ -26,7 +25,7 @@ count_triangles = True
 #   [Ego -> GCN]       [None -> GCN  ]
 # in      ->       16         ->        out
 
-test_nums_in = 4
+test_nums_in = 1
 
 labeled_data = 0.5
 
