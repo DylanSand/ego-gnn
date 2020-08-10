@@ -31,7 +31,11 @@ from sklearn.metrics import f1_score
 np.random.seed(numpy_seed)
 torch.manual_seed(torch_seed)
 
-wandb.init(project="ego-net")
+full_description = ''
+with open('./EGONETCONFIG.py', 'r') as f:
+    full_description = f.read()
+
+wandb.init(project="ego-net", notes=full_description)
 
 DATASET = current_dataset['name']
 print('We are using the dataset: ' + DATASET)
@@ -243,3 +247,7 @@ print('Average F1 macro score of ' + str(len(tests_f1_macro)) + ' tests is: ' + 
 print('Average F1 micro score of ' + str(len(tests_f1_micro)) + ' tests is: ' + str(sum(tests_f1_micro) / len(tests_f1_micro)))
 
 torch.save(model.state_dict(), osp.join(wandb.run.dir, 'model.p'))
+
+print('Model configuration:')
+with open('./EGONETCONFIG.py', 'r') as f:
+    print(f.read())
