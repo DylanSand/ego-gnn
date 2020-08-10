@@ -46,4 +46,3 @@ def to_sparse(x):
     indices = indices.t()
     values = x[tuple(indices[i] for i in range(indices.shape[0]))]
     return sparse_tensortype(indices, values, x.size())
-

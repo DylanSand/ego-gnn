@@ -31,23 +31,26 @@ from sklearn.metrics import f1_score
 np.random.seed(numpy_seed)
 torch.manual_seed(torch_seed)
 
-full_description = ''
-with open('./EGONETCONFIG.py', 'r') as f:
-    full_description = f.read()
-
-wandb.init(project="ego-net", notes=full_description)
-
 DATASET = current_dataset['name']
 print('We are using the dataset: ' + DATASET)
 input_path = ''
+job_id = ''
 import getopt
 opts, args = getopt.getopt(sys.argv[1:],"d:",["input_path="])
 for opt, arg in opts:
     if opt in ("-d", "--input_path"):
-       input_path = arg + '/' + current_dataset['location']
+        job_id = arg[11:-2]
+        input_path = arg + '/' + current_dataset['location']
     else:
-       sys.exit()
+        sys.exit()
 print(input_path)
+print(job_id)
+
+full_description = ''
+with open('./EGONETCONFIG.py', 'r') as f:
+    full_description = f.read()
+
+wandb.init(name=current_dataset['name']+" - "+job_id, project="ego-net", notes=full_description)
  
 # ---------------------------------------------------------------
 print("Done 1")
@@ -177,7 +180,11 @@ for test in range(TEST_NUM):
         model.train()
         optimizer.zero_grad()
         out = model(graph.x, graph.edge_index)
-        loss = F.nll_loss(out[train_mask], graph.y.to(device)[train_mask])
+        loss = None
+        if count_triangles:
+            loss = F.mse_loss(out[train_mask], graph.y.to(device)[train_mask])
+        else:
+            loss = F.nll_loss(out[train_mask], graph.y.to(device)[train_mask])
         loss.backward()
         optimizer.step()
         torch.cuda.empty_cache()
