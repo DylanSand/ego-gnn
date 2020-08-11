@@ -23,7 +23,7 @@ from torch_scatter import scatter_add
 from torch_geometric.nn import GCNConv, GATConv, GINConv, pool, SAGEConv
 from helpers import has_num, reindex_edgeindex, get_adj, to_sparse
 from ego_gnn import EgoGNN
-from EGONETCONFIG import current_dataset, count_triangles, test_nums_in, labeled_data, val_split, burnout_num, training_stop_limit, epoch_limit, numpy_seed, torch_seed
+from EGONETCONFIG import current_dataset, count_triangles, test_nums_in, labeled_data, val_split, burnout_num, training_stop_limit, epoch_limit, numpy_seed, torch_seed, remove_features
 import pickle
 import wandb
 from ogb.nodeproppred import PygNodePropPredDataset
@@ -111,10 +111,13 @@ if count_triangles:
         for edge_idx in range(len(ego.edge_index[0])):
             if not (ego.edge_index[0][edge_idx] == i or ego.edge_index[1][edge_idx] == i or ego.edge_index[0][edge_idx] == ego.edge_index[1][edge_idx]):
                 num_triangles[i] = num_triangles[i] + 1
-        num_triangles[i] = int(num_triangles[i] / 2)
+        num_triangles[i] = float(num_triangles[i] / 2)
     num_triangles = torch.tensor(num_triangles)
     graph.y = num_triangles
 
+if remove_features:
+    new_features = [[float(1.0)] * graph.x.shape[1]] * len(egoNets)
+    graph.x = torch.tensor(new_features)
 
 # ---------------------------------------------------------------
 print("Done 4")
@@ -162,6 +165,8 @@ for test in range(TEST_NUM):
                 test_mask = mask
 
     # RUN MODEL:
+    if count_triangles:
+        model = EgoGNN(egoNets, device, 1, graph.x.shape[1]).to(device)
     if DATASET == "Karate Club":
         model = EgoGNN(egoNets, device, 2, graph.x.shape[1]).to(device)
     else:
@@ -182,7 +187,7 @@ for test in range(TEST_NUM):
         out = model(graph.x, graph.edge_index)
         loss = None
         if count_triangles:
-            loss = F.mse_loss(out[train_mask], graph.y.to(device)[train_mask])
+            loss = F.mse_loss(out[train_mask], graph.y.to(device)[train_mask].view(-1, 1))
         else:
             loss = F.nll_loss(out[train_mask], graph.y.to(device)[train_mask])
         loss.backward()
@@ -199,31 +204,40 @@ for test in range(TEST_NUM):
         #    torch.cuda.empty_cache()
         if cur_epoch <= BURNOUT:
             print('     We are in BURNOUT')
-            f = open("model.p", "wb")
+            f = open("model"+str(test+1)+".p", "wb")
             pickle.dump(model, f)
             f.close()
             model.eval()
-            _, pred = model(graph.x, graph.edge_index).max(dim=1)
-            correct = float (pred[val_mask].eq(graph.y.to(device)[val_mask]).sum().item())
-            best_score = correct / val_mask.sum().item()
+            if count_triangles:
+                pred = model(graph.x, graph.edge_index)
+                best_score = torch.mean(F.mse_loss(pred[val_mask], graph.y.to(device)[val_mask].view(-1, 1)))
+            else:
+                _, pred = model(graph.x, graph.edge_index).max(dim=1)
+                correct = float (pred[val_mask].eq(graph.y.to(device)[val_mask]).sum().item())
+                best_score = correct / val_mask.sum().item()
             wandb.log({'epoch': cur_epoch, 'val-accuracy': best_score})
         else:
             model.eval()
-            _, pred = model(graph.x, graph.edge_index).max(dim=1)
-            correct = float (pred[val_mask].eq(graph.y.to(device)[val_mask]).sum().item())
-            cur_acc = correct / val_mask.sum().item()
+            cur_acc = 0
+            if count_triangles:
+                pred = model(graph.x, graph.edge_index)
+                cur_acc = torch.mean(F.mse_loss(pred[val_mask], graph.y.to(device)[val_mask].view(-1, 1)))
+            else:
+                _, pred = model(graph.x, graph.edge_index).max(dim=1)
+                correct = float (pred[val_mask].eq(graph.y.to(device)[val_mask]).sum().item())
+                cur_acc = correct / val_mask.sum().item()
             wandb.log({'epoch': cur_epoch, 'val-accuracy': cur_acc})
             print('     Current Acc: ' + str(cur_acc))
             print('     Best Acc:    ' + str(best_score))
             if cur_epoch > EPOCH_LIMIT:
                 print('          We have hit the epoch limit.')
                 training_done = True
-            if cur_acc < best_score:
+            if (cur_acc < best_score) or (count_triangles and best_score < cur_acc):
                 print('          We did worse.')
                 print('          Current counter: ' + str(training_counter))
                 if training_counter > TRAINING_STOP_LIMIT:
                     print('          We are done now.')
-                    f = open("model.p", "rb")
+                    f = open("model"+str(test+1)+".p", "rb")
                     model = pickle.load(f)
                     f.close()
                     training_done = True
@@ -231,29 +245,48 @@ for test in range(TEST_NUM):
                     training_counter = training_counter + 1
             else:
                 print('          We did better!')
-                f = open("model.p", "wb")
+                f = open("model"+str(test+1)+".p", "wb")
                 pickle.dump(model, f)
                 f.close()
                 training_counter = 0
                 best_score = cur_acc
         cur_epoch = cur_epoch + 1
     model.eval()
-    _, pred = model(graph.x, graph.edge_index).max(dim=1)
-    correct = float (pred[test_mask].eq(graph.y.to(device)[test_mask]).sum().item())
-    acc = correct / test_mask.sum().item()
+    acc = 0
+    if count_triangles:
+        pred = model(graph.x, graph.edge_index)
+        acc = float(torch.mean(F.mse_loss(pred[test_mask], graph.y.to(device)[test_mask].view(-1, 1))))
+    else:
+        _, pred = model(graph.x, graph.edge_index).max(dim=1)
+        correct = float (pred[test_mask].eq(graph.y.to(device)[test_mask]).sum().item())
+        acc = correct / test_mask.sum().item()
     print('Accuracy: {:.4f}'.format(acc))
     tests_acc.append(acc)
-    macro_score = f1_score(graph.y[test_mask], pred[test_mask].cpu(), average='macro')
-    print('Macro score is: ' + str(macro_score))
-    micro_score = f1_score(graph.y[test_mask], pred[test_mask].cpu(), average='micro')
-    print('Micro score is: ' + str(micro_score))
-    tests_f1_macro.append(macro_score)
-    tests_f1_micro.append(micro_score)
+    if not count_triangles:
+        macro_score = f1_score(graph.y[test_mask], pred[test_mask].cpu(), average='macro')
+        print('Macro score is: ' + str(macro_score))
+        micro_score = f1_score(graph.y[test_mask], pred[test_mask].cpu(), average='micro')
+        print('Micro score is: ' + str(micro_score))
+        tests_f1_macro.append(macro_score)
+        tests_f1_micro.append(micro_score)
 print('Average accuracy of ' + str(len(tests_acc)) + ' tests is: ' + str(sum(tests_acc) / len(tests_acc)))
-print('Average F1 macro score of ' + str(len(tests_f1_macro)) + ' tests is: ' + str(sum(tests_f1_macro) / len(tests_f1_macro)))
-print('Average F1 micro score of ' + str(len(tests_f1_micro)) + ' tests is: ' + str(sum(tests_f1_micro) / len(tests_f1_micro)))
+if not count_triangles:
+    print('Average F1 macro score of ' + str(len(tests_f1_macro)) + ' tests is: ' + str(sum(tests_f1_macro) / len(tests_f1_macro)))
+    print('Average F1 micro score of ' + str(len(tests_f1_micro)) + ' tests is: ' + str(sum(tests_f1_micro) / len(tests_f1_micro)))
 
-torch.save(model.state_dict(), osp.join(wandb.run.dir, 'model.p'))
+best_test_in = 0
+best_test = tests_acc[0]
+for i, acc in enumerate(tests_acc):
+    if count_triangles:
+        if acc < best_test:
+            best_test = acc
+            best_test_in = i
+    else:
+        if acc > best_test:
+            best_test = acc
+            best_test_in = i
+
+torch.save(model.state_dict(), osp.join(wandb.run.dir, 'model'+str(best_test_in+1)+'.p'))
 
 print('Model configuration:')
 with open('./EGONETCONFIG.py', 'r') as f:

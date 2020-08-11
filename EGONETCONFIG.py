@@ -1,6 +1,6 @@
 
-#current_dataset = { "name": "Cora", "location": "Cora" }
-current_dataset = { "name": "Karate Club", "location": "KarateClub" }
+current_dataset = { "name": "Cora", "location": "Cora" }
+#current_dataset = { "name": "Karate Club", "location": "KarateClub" }
 #current_dataset = { "name": "Citeseer", "location": "Citeseer" }
 #current_dataset = { "name": "Pubmed", "location": "Pubmed" }
 #current_dataset = { "name": "Amazon Computers", "location": "AmazonComputers" }
@@ -19,13 +19,14 @@ layer_design = [
 local_depth = 1
 local_power = 3
 
-count_triangles = False
+count_triangles = True
+remove_features = True
 
 #        R        R         R       R    
 #   [Ego -> GCN]       [None -> GCN  ]
 # in      ->       16         ->        out
 
-test_nums_in = 1
+test_nums_in = 4
 
 labeled_data = 0.5
 
@@ -37,7 +38,7 @@ training_stop_limit = 9
 
 epoch_limit = 500
 
-numpy_seed = 48
+numpy_seed = 49
 
-torch_seed = 75
+torch_seed = 76
 
