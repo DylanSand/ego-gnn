@@ -8,11 +8,12 @@ current_dataset = { "name": "Cora", "location": "Cora" }
 #current_dataset = { "name": "Reddit", "location": "Reddit" }
 #current_dataset = { "name": "Flickr", "location": "Flickr" }
 #current_dataset = { "name": "OGB Products", "location": "OGBProducts" }
+#current_dataset = { "name": "GitHub Network", "location": "GitHub" }
 
 hidden_sizes = ["in", "out"]
 
 layer_design = [
-    ["Ego", "GCN", True, False]
+    [None, "GCN", True, False]
     #[None, "GCN", False, False]
 ]
 
@@ -26,19 +27,19 @@ remove_features = True
 #   [Ego -> GCN]       [None -> GCN  ]
 # in      ->       16         ->        out
 
-test_nums_in = 4
+test_nums_in = 1
 
 labeled_data = 0.5
 
 val_split = 0.3
 
-burnout_num = 100
+burnout_num = 30
 
 training_stop_limit = 9
 
-epoch_limit = 500
+epoch_limit = 100
 
-numpy_seed = 49
+numpy_seed = 41
 
-torch_seed = 76
+torch_seed = 71
 

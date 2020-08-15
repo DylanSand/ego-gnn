@@ -1,4 +1,7 @@
 import torch
+import json
+import pandas as pd
+import networkx as nx
 
 def has_num(tensor, num):
     temp = tensor.view(1, -1)
@@ -46,3 +49,39 @@ def to_sparse(x):
     indices = indices.t()
     values = x[tuple(indices[i] for i in range(indices.shape[0]))]
     return sparse_tensortype(indices, values, x.size())
+
+def load_graph(graph_path):
+    """
+    Reading a NetworkX graph.
+    :param graph_path: Path to the edge list.
+    :return graph: NetworkX object.
+    """
+    data = pd.read_csv(graph_path)
+    edges = data.values.tolist()
+    edges = [[int(edge[0]), int(edge[1])] for edge in edges]
+    graph = nx.from_edgelist(edges)
+    graph.remove_edges_from(nx.selfloop_edges(graph))
+    return graph
+
+def load_targets(target_path):
+    data = pd.read_csv(target_path).values.tolist()
+    targets = [int(target[2]) for target in data]
+    return targets
+
+def load_features(features_path):
+    """
+    Reading the features from disk.
+    :param features_path: Location of feature JSON.
+    :return features: Feature hash table.
+    """
+    features = json.load(open(features_path))
+    features = [[float(val) for val in v] for k, v in features.items()]
+    max_length = 0
+    for feats in features:
+        feats.sort(reverse=True)
+        if len(feats) > max_length:
+            max_length = len(feats)
+    for feats in features:
+        while len(feats) < max_length:
+            feats.append(0)
+    return features
