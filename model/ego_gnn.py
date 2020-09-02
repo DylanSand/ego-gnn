@@ -7,12 +7,13 @@ import torch_sparse
 from EGONETCONFIG import hidden_sizes, layer_design, local_depth, local_power, count_triangles
  
 class EgoGNN(torch.nn.Module):
-    def __init__(self, egoNets, device, num_out, num_feat):
+    def __init__(self, egoNets, device, num_out, num_feat, norm_degrees):
         super(EgoGNN, self).__init__()
 
         self.egoNets = egoNets
         self.numNodes = len(self.egoNets)
         self.device = device
+        self.norm_degrees = norm_degrees.to(self.device)
         modList = []
         for i, layer in enumerate(layer_design):
             input_num = hidden_sizes[i]
@@ -42,9 +43,11 @@ class EgoGNN(torch.nn.Module):
         #orig = x.data.clone()
         #x = convInter[0](x, egoNets[0].edge_index.to(device).data)
         #print(torch.ones((egoNets[0].edge_index.shape[1])))
-        output = torch_sparse.spmm(self.egoNets[0].edge_index.to(self.device), torch.ones((self.egoNets[0].edge_index.shape[1],)).to(self.device), self.numNodes, self.numNodes, x)
+        #output = torch_sparse.spmm(self.egoNets[0].edge_index.to(self.device), torch.ones((self.egoNets[0].edge_index.shape[1],)).to(self.device), self.numNodes, self.numNodes, x)
+        output = torch_sparse.spmm(self.egoNets[0].ego_norm_ind.to(self.device), self.egoNets[0].ego_norm_val.to(self.device), self.numNodes, self.numNodes, x)
         for power in range(local_power-1):
-            output = torch_sparse.spmm(self.egoNets[0].edge_index.to(self.device), torch.ones((self.egoNets[0].edge_index.shape[1],)).to(self.device), self.numNodes, self.numNodes, output)
+            #output = torch_sparse.spmm(self.egoNets[0].edge_index.to(self.device), torch.ones((self.egoNets[0].edge_index.shape[1],)).to(self.device), self.numNodes, self.numNodes, output)
+            output = torch_sparse.spmm(self.egoNets[0].ego_norm_ind.to(self.device), self.egoNets[0].ego_norm_val.to(self.device), self.numNodes, self.numNodes, output)
         #output = convInter(x, egoNets[0].edge_index.to(device))
         for i, ego in enumerate(self.egoNets):
             if i == 0:
@@ -60,12 +63,16 @@ class EgoGNN(torch.nn.Module):
             #del cpu_x
             #torch.cuda.empty_cache()
             #output = output + convInter(x, ego.edge_index.to(device))
-            temp_out = torch_sparse.spmm(ego.edge_index.to(self.device), torch.ones((ego.edge_index.shape[1],)).to(self.device), self.numNodes, self.numNodes, x)
+            #values = ego.ego_degrees
+            #values = torch.ones((ego.edge_index.shape[1]))
+            #temp_out = torch_sparse.spmm(ego.edge_index.to(self.device), torch.ones((ego.edge_index.shape[1])).to(self.device), self.numNodes, self.numNodes, x)
+            temp_out = torch_sparse.spmm(ego.ego_norm_ind.to(self.device), ego.ego_norm_val.to(self.device), self.numNodes, self.numNodes, x)
             for power in range(local_power-1):
-                temp_out = torch_sparse.spmm(ego.edge_index.to(self.device), torch.ones((ego.edge_index.shape[1],)).to(self.device), self.numNodes, self.numNodes, temp_out)
+                #temp_out = torch_sparse.spmm(ego.edge_index.to(self.device), torch.ones((ego.edge_index.shape[1])).to(self.device), self.numNodes, self.numNodes, temp_out)
+                temp_out = torch_sparse.spmm(ego.ego_norm_ind.to(self.device), ego.ego_norm_val.to(self.device), self.numNodes, self.numNodes, temp_out)
             output = output + temp_out
-        #x = x * (1 / len(egoNets))
-        output = output * (1 / self.numNodes)
+        #output = output * (1 / self.numNodes)
+        output = torch.mul(output, self.norm_degrees)
         torch.cuda.empty_cache()
         return output
  
@@ -95,6 +102,7 @@ class EgoGNN(torch.nn.Module):
             if layer[3]:
                 x = F.relu(x)
         if count_triangles:
-            return F.relu(x)
+            #return F.relu(x)
+            return F.sigmoid(x)
         else:
             return F.log_softmax(x, dim=1)

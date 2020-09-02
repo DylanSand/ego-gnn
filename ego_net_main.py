@@ -5,6 +5,7 @@ import sys
 sys.path.insert(1, './utils')
 sys.path.insert(1, './model')
 import numpy as np
+import math
 import os.path as osp
 import torch.nn.functional as F
 from torch.nn import ModuleList
@@ -23,9 +24,10 @@ from torch_scatter import scatter_add
 from torch_geometric.nn import GCNConv, GATConv, GINConv, pool, SAGEConv
 from helpers import has_num, reindex_edgeindex, get_adj, to_sparse, load_graph, load_features, load_targets
 from ego_gnn import EgoGNN
-from EGONETCONFIG import current_dataset, count_triangles, test_nums_in, labeled_data, val_split, burnout_num, training_stop_limit, epoch_limit, numpy_seed, torch_seed, remove_features
+from EGONETCONFIG import current_dataset, count_triangles, test_nums_in, labeled_data, val_split, learning_rate, weight_decay, burnout_num, training_stop_limit, epoch_limit, numpy_seed, torch_seed, remove_features
 import pickle
 import wandb
+from torch_sparse import spspmm
 from ogb.nodeproppred import PygNodePropPredDataset
 from sklearn.metrics import f1_score
 np.random.seed(numpy_seed)
@@ -98,6 +100,7 @@ egoNets = [0] * graph.num_nodes
 adjMats = [0] * graph.num_nodes
 plot = 331
 curPlot = 0
+norm_degrees = []
 for batch_size, n_id, adj in batches:
     curData = subgraph(n_id, graph.edge_index)
     updated_e_index = to_undirected(curData[0], n_id.shape[0])
@@ -106,8 +109,42 @@ for batch_size, n_id, adj in batches:
     cur_e_id = adj.e_id.tolist()
     subgraph2 = Data(edge_index=updated_e_index, edge_attr=curData[1], num_nodes=subgraph_size, n_id=cur_n_id, e_id=cur_e_id, degree=len(cur_n_id)-1, adj=get_adj(updated_e_index, graph.edge_index, curPlot, cur_e_id))
     subgraph2.coalesce()
+    ######################
+    #ego_degrees = {}
+    #for edge in subgraph2.edge_index[1]:
+    #    cur_edge = int(edge)
+    #    if str(cur_edge) in ego_degrees:
+    #        ego_degrees[str(cur_edge)] = ego_degrees[str(cur_edge)] + 1
+    #    else:
+    #        ego_degrees[str(cur_edge)] = 1
+    ######################
+    #ego_n_degrees = []
+    #for edge in subgraph2.edge_index[1]:
+    #    cur_edge = int(edge)
+    #    ego_n_degrees.append(float(1 / float(ego_degrees[str(cur_edge)])))
+    #ego_n_degrees = torch.tensor(ego_n_degrees)
+    #ego_n_degrees = torch.reshape(ego_n_degrees, (subgraph2.edge_index.shape[1],))
+    #subgraph2.ego_degrees = ego_n_degrees
+    ego_norm_ind = [[],[]]
+    ego_norm_val = []
+    # UNDO THIS:
+    #for inner_node in subgraph2.n_id:
+    #    ego_norm_ind[0].append(int(inner_node))
+    #    ego_norm_ind[1].append(int(inner_node))
+    #    ego_norm_val.append(1.0 / math.sqrt(float(ego_degrees[str(inner_node)])))
+    #ego_norm_ind = torch.tensor(ego_norm_ind)
+    #ego_norm_val = torch.tensor(ego_norm_val)
+    #temp1, temp2 = spspmm(ego_norm_ind, ego_norm_val, subgraph2.edge_index, torch.ones((subgraph2.edge_index.shape[1])), graph.num_nodes, graph.num_nodes, graph.num_nodes)
+    #ego_norm_ind, ego_norm_val = spspmm(temp1, temp2, ego_norm_ind, ego_norm_val, graph.num_nodes, graph.num_nodes, graph.num_nodes)
+    #subgraph2.ego_norm_ind = ego_norm_ind
+    #subgraph2.ego_norm_val = ego_norm_val
+    temp1 = None
+    temp2 = None
+    ego_degrees = None
     egoNets[curPlot] = subgraph2
+    norm_degrees.append(1.0 / float(subgraph2.degree + 1))
     curPlot = curPlot + 1
+norm_degrees = torch.reshape(torch.tensor(norm_degrees), (len(egoNets), 1))
 
 # ---------------------------------------------------------------
 print("Done 3")
@@ -123,9 +160,67 @@ if count_triangles:
         num_triangles[i] = float(num_triangles[i] / 2)
         if not (ego.degree == 0 or ego.degree == 1):
             clustering_coeff[i] = float((2.0 * num_triangles[i]) / (ego.degree * (ego.degree - 1)))
+    #wandb.log({'triangle-distribution': wandb.Histogram(np_histogram=np.histogram([int(tri) for tri in num_triangles],bins=list(range(int(max(num_triangles)+1)))))})
+    plt.hist([int(tri) for tri in num_triangles],bins=int(max(num_triangles)+1),range=(0,max(num_triangles)))
+    plt.xlabel('Triangle Number')
+    plt.ylabel('Amount of Nodes')
+    plt.title('Triangle Distribution')
+    wandb.log({'triangle-distribution': wandb.Image(plt)})
+    plt.clf()
+    plt.close()
+    plt.hist([int(tri) for tri in num_triangles],bins=int(max(num_triangles)+1),range=(1,max(num_triangles)))
+    plt.xlabel('Triangle Number (Pruned)')
+    plt.ylabel('Amount of Nodes')
+    plt.title('Triangle Distribution')
+    wandb.log({'triangle-distribution-pruned': wandb.Image(plt)})
+    plt.clf()
+    plt.close()
+    plt.hist([int(tri) for tri in num_triangles],bins=int(max(num_triangles)+1),range=(0,max(num_triangles)),log=True)
+    plt.xlabel('Triangle Number')
+    plt.ylabel('Amount of Nodes')
+    plt.title('Triangle Distribution (Log)')
+    wandb.log({'triangle-distribution-log': wandb.Image(plt)})
+    plt.clf()
+    plt.close()
+    plt.hist([int(tri) for tri in num_triangles],bins=int(max(num_triangles)+1),range=(1,max(num_triangles)),log=True)
+    plt.xlabel('Triangle Number')
+    plt.ylabel('Amount of Nodes')
+    plt.title('Triangle Distribution (Pruned + Log)')
+    wandb.log({'triangle-distribution-pruned-log': wandb.Image(plt)})
+    plt.clf()
+    plt.close()
+    num_divisions = 12
+    bins = np.arange(0.0, 1.0, 1.0/num_divisions).tolist()
+    bins.reverse()
+    num_in_bin = [0] * len(egoNets)
+    for i, ego in enumerate(egoNets):
+        for ind, bucket in enumerate(bins):
+            if clustering_coeff[i] >= bucket:
+                num_in_bin[i] = bucket
+                break
+    bins.reverse()
+    plt.hist(num_in_bin,bins=len(bins),range=(0.0,1.0),log=True)
+    plt.xlabel('Clustering Coefficient')
+    plt.ylabel('Amount of Nodes')
+    plt.title('CC Distribution (Log)')
+    wandb.log({'cc-distribution-log': wandb.Image(plt)})
+    plt.clf()
+    plt.close()
+
+    #import plotly.graph_objects as go
+    #bins=[str(label) for label in list(range(int(max(num_triangles)+1)))]
+    #heights=[0] * int(max(num_triangles)+1)
+    #for tri in num_triangles:
+    #    heights[int(tri)] = heights[int(tri)] + 1
+    #fig = go.Figure([go.Bar(x=bins, y=heights)])
+    #wandb.log({'triangle-distribution': fig})
+
     num_triangles = torch.tensor(num_triangles)
     clustering_coeff = torch.tensor(clustering_coeff)
     graph.y = clustering_coeff
+
+    print('Average clustering coefficient is: ' + str(float(torch.mean(clustering_coeff))))
+    wandb.log({'cluster-avg': float(torch.mean(clustering_coeff))})
 
 if remove_features:
     new_features = []
@@ -143,6 +238,7 @@ wandb.log({'action': 'Done 4'})
 #train_loader = ClusterLoader(train_loader, batch_size=2, shuffle=True, num_workers=12)
 
 tests_acc = []
+tests_clus_avg = []
 tests_f1_macro = []
 tests_f1_micro = []
 TEST_NUM = test_nums_in
@@ -188,12 +284,12 @@ for test in range(TEST_NUM):
 
     # RUN MODEL:
     if count_triangles:
-        model = EgoGNN(egoNets, device, 1, graph.x.shape[1]).to(device)
+        model = EgoGNN(egoNets, device, 1, graph.x.shape[1], norm_degrees).to(device)
     elif DATASET == "Karate Club" or DATASET == "GitHub Network":
-        model = EgoGNN(egoNets, device, 2, graph.x.shape[1]).to(device)
+        model = EgoGNN(egoNets, device, 2, graph.x.shape[1], norm_degrees).to(device)
     else:
-        model = EgoGNN(egoNets, device, real_data.num_classes, graph.x.shape[1]).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=1e-5)
+        model = EgoGNN(egoNets, device, real_data.num_classes, graph.x.shape[1], norm_degrees).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     cur_epoch = 1
     training_done = False
     best_score = None
@@ -211,6 +307,7 @@ for test in range(TEST_NUM):
         if count_triangles:
             loss = F.mse_loss(out[train_mask], graph.y.to(device).view(-1, 1)[train_mask])
             training_loss = torch.mean(loss)
+            #training_loss = torch.mean(F.mse_loss(torch.exp(out[train_mask])-1, clustering_coeff.to(device).view(-1, 1)[train_mask]))
         else:
             loss = F.nll_loss(out[train_mask], graph.y.to(device)[train_mask])
         loss.backward()
@@ -233,31 +330,37 @@ for test in range(TEST_NUM):
             model.eval()
             if count_triangles:
                 pred = model(graph.x, graph.edge_index)
+                #best_score = torch.mean(F.mse_loss(torch.exp(pred[val_mask])-1, clustering_coeff.to(device).view(-1, 1)[val_mask]))
                 best_score = torch.mean(F.mse_loss(pred[val_mask], graph.y.to(device)[val_mask].view(-1, 1)))
                 #correct = torch.round(pred)[val_mask].eq(graph.y.to(device).view(-1, 1)[val_mask])
                 #best_score = float(correct.sum().item()) / float(val_mask.sum().item())
-                wandb.log({'epoch': cur_epoch, 'val-loss': best_score, 'train-loss': training_loss})
+                wandb.log({'epoch'+str(test+1): cur_epoch, 'val-loss'+str(test+1): best_score, 'train-loss'+str(test+1): training_loss})
             else:
                 _, pred = model(graph.x, graph.edge_index).max(dim=1)
                 correct = float (pred[val_mask].eq(graph.y.to(device)[val_mask]).sum().item())
                 best_score = correct / val_mask.sum().item()
-                wandb.log({'epoch': cur_epoch, 'val-accuracy': best_score})
+                correct_train = float (pred[train_mask].eq(graph.y.to(device)[train_mask]).sum().item())
+                cur_acc_train = correct_train / train_mask.sum().item()
+                wandb.log({'epoch'+str(test+1): cur_epoch, 'val-accuracy'+str(test+1): best_score, 'train-accuracy'+str(test+1): cur_acc_train})
         else:
             model.eval()
             cur_acc = 0
             if count_triangles:
                 pred = model(graph.x, graph.edge_index)
+                #cur_acc = torch.mean(F.mse_loss(torch.exp(pred[val_mask])-1, clustering_coeff.to(device).view(-1, 1)[val_mask]))
                 cur_acc = torch.mean(F.mse_loss(pred[val_mask], graph.y.to(device)[val_mask].view(-1, 1)))
                 #correct = torch.round(pred)[val_mask].eq(graph.y.to(device).view(-1, 1)[val_mask])
                 #cur_acc = float(correct.sum().item()) / float(val_mask.sum().item())
-                wandb.log({'epoch': cur_epoch, 'val-loss': cur_acc, 'train-loss': training_loss})
+                wandb.log({'epoch'+str(test+1): cur_epoch, 'val-loss'+str(test+1): cur_acc, 'train-loss'+str(test+1): training_loss})
                 print('     Current Val Loss: ' + str(float(cur_acc)))
                 print('     Best Val Loss:    ' + str(float(best_score)))
             else:
                 _, pred = model(graph.x, graph.edge_index).max(dim=1)
                 correct = float (pred[val_mask].eq(graph.y.to(device)[val_mask]).sum().item())
                 cur_acc = correct / val_mask.sum().item()
-                wandb.log({'epoch': cur_epoch, 'val-accuracy': cur_acc})
+                correct_train = float (pred[train_mask].eq(graph.y.to(device)[train_mask]).sum().item())
+                cur_acc_train = correct_train / train_mask.sum().item()
+                wandb.log({'epoch'+str(test+1): cur_epoch, 'val-accuracy'+str(test+1): cur_acc, 'train-accuracy'+str(test+1): cur_acc_train})
                 print('     Current Val Acc: ' + str(cur_acc))
                 print('     Best Val Acc:    ' + str(best_score))
             if cur_epoch > EPOCH_LIMIT:
@@ -289,10 +392,14 @@ for test in range(TEST_NUM):
     acc = 0
     if count_triangles:
         pred = model(graph.x, graph.edge_index)
+        #acc = torch.mean(F.mse_loss(torch.exp(pred[test_mask])-1, clustering_coeff.to(device).view(-1, 1)[test_mask]))
         acc = float(torch.mean(F.mse_loss(pred[test_mask], graph.y.to(device)[test_mask].view(-1, 1))))
+        avg_pred = float(torch.mean(pred))
+        tests_clus_avg.append(avg_pred)
         #correct = torch.round(pred)[test_mask].eq(graph.y.to(device).view(-1, 1)[test_mask])
         #acc = float(correct.sum().item()) / float(test_mask.sum().item())
         print('Test Loss: {:.4f}'.format(acc))
+        print('Test Avg Clus.: {:.4f}'.format(avg_pred))
     else:
         _, pred = model(graph.x, graph.edge_index).max(dim=1)
         correct = float (pred[test_mask].eq(graph.y.to(device)[test_mask]).sum().item())
@@ -308,6 +415,7 @@ for test in range(TEST_NUM):
         tests_f1_micro.append(micro_score)
 if count_triangles:
     print('Average loss of ' + str(len(tests_acc)) + ' tests is: ' + str(sum(tests_acc) / len(tests_acc)))
+    print('Average clustering coefficient of ' + str(len(tests_clus_avg)) + ' tests is: ' + str(sum(tests_clus_avg) / len(tests_clus_avg)))
 else:
     print('Average accuracy of ' + str(len(tests_acc)) + ' tests is: ' + str(sum(tests_acc) / len(tests_acc)))
     print('Average F1 macro score of ' + str(len(tests_f1_macro)) + ' tests is: ' + str(sum(tests_f1_macro) / len(tests_f1_macro)))

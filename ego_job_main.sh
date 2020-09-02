@@ -7,7 +7,7 @@
 #SBATCH -o /home/mila/d/dylan.sandfelder/slurm-%j/log.out  # Write the log on tmp1
 # ----------------------
 
-rm ~/ego-gnn/model.p
+rm ~/ego-gnn/model?.p
 
 echo "Loading modules..."
 
@@ -31,6 +31,8 @@ pip3 install ogb
 pip3 install wandb
 
 pip3 install -U scikit-learn
+
+#pip3 install plotly
 
 # ----------------------
 
