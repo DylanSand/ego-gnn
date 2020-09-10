@@ -17,7 +17,7 @@ from tqdm import tqdm
 import pandas as pd
 from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import add_self_loops, degree, erdos_renyi_graph, to_networkx, from_networkx, to_undirected, subgraph, to_dense_adj, remove_self_loops
-from torch_geometric.datasets import Amazon, Planetoid, Reddit, KarateClub, SNAPDataset, Flickr
+from torch_geometric.datasets import Amazon, GNNBenchmarkDataset, Planetoid, Reddit, KarateClub, SNAPDataset, Flickr
 from torch_geometric.data import NeighborSampler, Data, ClusterData, ClusterLoader
 import torch.nn as nern
 from torch_scatter import scatter_add
@@ -70,6 +70,10 @@ elif DATASET == "Amazon Computers":
     real_data = Amazon(root=input_path, name="Computers")
 elif DATASET == "Amazon Photos":
     real_data = Amazon(root=input_path, name="Photo")
+elif DATASET == "CLUSTER":
+    real_data = GNNBenchmarkDataset(root=input_path, name="CLUSTER")
+elif DATASET == "PATTERN":
+    real_data = GNNBenchmarkDataset(root=input_path, name="PATTERN")
 elif DATASET == "Flickr":
     real_data = Flickr(root=input_path)
 elif DATASET == "OGB Products":
@@ -80,7 +84,22 @@ elif DATASET == "GitHub Network":
     gitGraph.x = torch.tensor(load_features(input_path + '/musae_git_features.json'))
     gitGraph.y = torch.tensor(load_targets(input_path + '/musae_git_target.csv'))
 
-
+egoNets = None
+graph = None
+norm_degrees = None
+if load_data:
+    extra = ""
+    if count_triangles:
+        extra = "tri"
+    f = open(DATASET+"egoNets"+extra+".p", "rb")
+    egoNets = pickle.load(f)
+    f.close()
+    f = open(DATASET+"graph"+extra+".p", "rb")
+    graph = pickle.load(f)
+    f.close()
+    f = open(DATASET+"norm_degrees"+extra+".p", "rb")
+    norm_degrees = pickle.load(f)
+    f.close()
 
 # ---------------------------------------------------------------
 print("Done 2")
@@ -110,13 +129,13 @@ for batch_size, n_id, adj in batches:
     subgraph2 = Data(edge_index=updated_e_index, edge_attr=curData[1], num_nodes=subgraph_size, n_id=cur_n_id, e_id=cur_e_id, degree=len(cur_n_id)-1, adj=get_adj(updated_e_index, graph.edge_index, curPlot, cur_e_id))
     subgraph2.coalesce()
     ######################
-    #ego_degrees = {}
-    #for edge in subgraph2.edge_index[1]:
-    #    cur_edge = int(edge)
-    #    if str(cur_edge) in ego_degrees:
-    #        ego_degrees[str(cur_edge)] = ego_degrees[str(cur_edge)] + 1
-    #    else:
-    #        ego_degrees[str(cur_edge)] = 1
+    ego_degrees = {}
+    for edge in subgraph2.edge_index[1]:
+        cur_edge = int(edge)
+        if str(cur_edge) in ego_degrees:
+            ego_degrees[str(cur_edge)] = ego_degrees[str(cur_edge)] + 1
+        else:
+            ego_degrees[str(cur_edge)] = 1
     ######################
     #ego_n_degrees = []
     #for edge in subgraph2.edge_index[1]:
@@ -128,16 +147,16 @@ for batch_size, n_id, adj in batches:
     ego_norm_ind = [[],[]]
     ego_norm_val = []
     # UNDO THIS:
-    #for inner_node in subgraph2.n_id:
-    #    ego_norm_ind[0].append(int(inner_node))
-    #    ego_norm_ind[1].append(int(inner_node))
-    #    ego_norm_val.append(1.0 / math.sqrt(float(ego_degrees[str(inner_node)])))
-    #ego_norm_ind = torch.tensor(ego_norm_ind)
-    #ego_norm_val = torch.tensor(ego_norm_val)
-    #temp1, temp2 = spspmm(ego_norm_ind, ego_norm_val, subgraph2.edge_index, torch.ones((subgraph2.edge_index.shape[1])), graph.num_nodes, graph.num_nodes, graph.num_nodes)
-    #ego_norm_ind, ego_norm_val = spspmm(temp1, temp2, ego_norm_ind, ego_norm_val, graph.num_nodes, graph.num_nodes, graph.num_nodes)
-    #subgraph2.ego_norm_ind = ego_norm_ind
-    #subgraph2.ego_norm_val = ego_norm_val
+    for inner_node in subgraph2.n_id:
+        ego_norm_ind[0].append(int(inner_node))
+        ego_norm_ind[1].append(int(inner_node))
+        ego_norm_val.append(1.0 / math.sqrt(float(ego_degrees[str(inner_node)])))
+    ego_norm_ind = torch.tensor(ego_norm_ind)
+    ego_norm_val = torch.tensor(ego_norm_val)
+    temp1, temp2 = spspmm(ego_norm_ind, ego_norm_val, subgraph2.edge_index, torch.ones((subgraph2.edge_index.shape[1])), graph.num_nodes, graph.num_nodes, graph.num_nodes)
+    ego_norm_ind, ego_norm_val = spspmm(temp1, temp2, ego_norm_ind, ego_norm_val, graph.num_nodes, graph.num_nodes, graph.num_nodes)
+    subgraph2.ego_norm_ind = ego_norm_ind
+    subgraph2.ego_norm_val = ego_norm_val
     temp1 = None
     temp2 = None
     ego_degrees = None
@@ -202,8 +221,8 @@ if count_triangles:
     plt.hist(num_in_bin,bins=len(bins),range=(0.0,1.0),log=True)
     plt.xlabel('Clustering Coefficient')
     plt.ylabel('Amount of Nodes')
-    plt.title('CC Distribution (Log)')
-    wandb.log({'cc-distribution-log': wandb.Image(plt)})
+    plt.title('CC Distribution (Log) Full Truth')
+    wandb.log({'cc-distribution-log-full-truth': wandb.Image(plt)})
     plt.clf()
     plt.close()
 
@@ -226,13 +245,27 @@ if remove_features:
     new_features = []
     for node_i in range(len(egoNets)):
         new_features.append([float(num+1) for num in range(graph.x.shape[1])])
-    for new_feat in new_features:
-        random.Random(random.random()).shuffle(new_feat)
+    #for new_feat in new_features:
+    #    random.Random(random.random()).shuffle(new_feat)
     graph.x = torch.tensor(new_features)
 
 # ---------------------------------------------------------------
 print("Done 4")
 wandb.log({'action': 'Done 4'})
+
+if save_data:
+    extra = ""
+    if count_triangles:
+        extra = "tri"
+    f = open(DATASET+"egoNets"+extra+".p", "wb")
+    pickle.dump(egoNets, f)
+    f.close()
+    f = open(DATASET+"graph"+extra+".p", "wb")
+    pickle.dump(graph, f)
+    f.close()
+    f = open(DATASET+"norm_degrees"+extra+".p", "wb")
+    pickle.dump(norm_degrees, f)
+    f.close()
 
 #train_loader = ClusterData(graph, num_parts=int(graph.num_nodes / 10), recursive=False)
 #train_loader = ClusterLoader(train_loader, batch_size=2, shuffle=True, num_workers=12)
@@ -281,6 +314,57 @@ for test in range(TEST_NUM):
                 train_mask[i] = False
                 val_mask[i] = False
                 test_mask[i] = False
+        num_divisions = 12
+        bins = np.arange(0.0, 1.0, 1.0/num_divisions).tolist()
+        bins.reverse()
+        num_in_bin = [0] * len(clustering_coeff[train_mask])
+        for i, ego in enumerate(clustering_coeff[train_mask]):
+            for ind, bucket in enumerate(bins):
+                if float(clustering_coeff[train_mask][i]) >= bucket:
+                    num_in_bin[i] = bucket
+                    break
+        bins.reverse()
+        plt.hist(num_in_bin,bins=len(bins),range=(0.0,1.0),log=True)
+        plt.xlabel('Clustering Coefficient')
+        plt.ylabel('Amount of Nodes')
+        plt.title('CC Distribution (Log) Training Set Truth')
+        wandb.log({'cc-distribution-log-train-set-truth': wandb.Image(plt)})
+        plt.clf()
+        plt.close()
+        num_divisions = 12
+        bins = np.arange(0.0, 1.0, 1.0/num_divisions).tolist()
+        bins.reverse()
+        num_in_bin = [0] * len(clustering_coeff[val_mask])
+        for i, ego in enumerate(clustering_coeff[val_mask]):
+            for ind, bucket in enumerate(bins):
+                if float(clustering_coeff[val_mask][i]) >= bucket:
+                    num_in_bin[i] = bucket
+                    break
+        bins.reverse()
+        plt.hist(num_in_bin,bins=len(bins),range=(0.0,1.0),log=True)
+        plt.xlabel('Clustering Coefficient')
+        plt.ylabel('Amount of Nodes')
+        plt.title('CC Distribution (Log) Validation Set Truth')
+        wandb.log({'cc-distribution-log-val-set-truth': wandb.Image(plt)})
+        plt.clf()
+        plt.close()
+        num_divisions = 12
+        bins = np.arange(0.0, 1.0, 1.0/num_divisions).tolist()
+        bins.reverse()
+        num_in_bin = [0] * len(clustering_coeff[test_mask])
+        for i, ego in enumerate(clustering_coeff[test_mask]):
+            for ind, bucket in enumerate(bins):
+                if float(clustering_coeff[test_mask][i]) >= bucket:
+                    num_in_bin[i] = bucket
+                    break
+        bins.reverse()
+        plt.hist(num_in_bin,bins=len(bins),range=(0.0,1.0),log=True)
+        plt.xlabel('Clustering Coefficient')
+        plt.ylabel('Amount of Nodes')
+        plt.title('CC Distribution (Log) Test Set Truth')
+        wandb.log({'cc-distribution-log-test-set-truth': wandb.Image(plt)})
+        plt.clf()
+        plt.close()
 
     # RUN MODEL:
     if count_triangles:
@@ -400,6 +484,74 @@ for test in range(TEST_NUM):
         #acc = float(correct.sum().item()) / float(test_mask.sum().item())
         print('Test Loss: {:.4f}'.format(acc))
         print('Test Avg Clus.: {:.4f}'.format(avg_pred))
+        num_divisions = 12
+        bins = np.arange(0.0, 1.0, 1.0/num_divisions).tolist()
+        bins.reverse()
+        num_in_bin = [0] * len(pred)
+        for i, ego in enumerate(pred):
+            for ind, bucket in enumerate(bins):
+                if float(pred[i]) >= bucket:
+                    num_in_bin[i] = bucket
+                    break
+        bins.reverse()
+        plt.hist(num_in_bin,bins=len(bins),range=(0.0,1.0),log=True)
+        plt.xlabel('Clustering Coefficient')
+        plt.ylabel('Amount of Nodes')
+        plt.title('CC Distribution (Log) Full '+str(test+1))
+        wandb.log({'cc-distribution-log-full-'+str(test+1): wandb.Image(plt)})
+        plt.clf()
+        plt.close()
+        num_divisions = 12
+        bins = np.arange(0.0, 1.0, 1.0/num_divisions).tolist()
+        bins.reverse()
+        num_in_bin = [0] * len(pred[train_mask])
+        for i, ego in enumerate(pred[train_mask]):
+            for ind, bucket in enumerate(bins):
+                if float(pred[train_mask][i]) >= bucket:
+                    num_in_bin[i] = bucket
+                    break
+        bins.reverse()
+        plt.hist(num_in_bin,bins=len(bins),range=(0.0,1.0),log=True)
+        plt.xlabel('Clustering Coefficient')
+        plt.ylabel('Amount of Nodes')
+        plt.title('CC Distribution (Log) Training Set '+str(test+1))
+        wandb.log({'cc-distribution-log-train-set-'+str(test+1): wandb.Image(plt)})
+        plt.clf()
+        plt.close()
+        num_divisions = 12
+        bins = np.arange(0.0, 1.0, 1.0/num_divisions).tolist()
+        bins.reverse()
+        num_in_bin = [0] * len(pred[val_mask])
+        for i, ego in enumerate(pred[val_mask]):
+            for ind, bucket in enumerate(bins):
+                if float(pred[val_mask][i]) >= bucket:
+                    num_in_bin[i] = bucket
+                    break
+        bins.reverse()
+        plt.hist(num_in_bin,bins=len(bins),range=(0.0,1.0),log=True)
+        plt.xlabel('Clustering Coefficient')
+        plt.ylabel('Amount of Nodes')
+        plt.title('CC Distribution (Log) Validation Set '+str(test+1))
+        wandb.log({'cc-distribution-log-val-set-'+str(test+1): wandb.Image(plt)})
+        plt.clf()
+        plt.close()
+        num_divisions = 12
+        bins = np.arange(0.0, 1.0, 1.0/num_divisions).tolist()
+        bins.reverse()
+        num_in_bin = [0] * len(pred[test_mask])
+        for i, ego in enumerate(pred[test_mask]):
+            for ind, bucket in enumerate(bins):
+                if float(pred[test_mask][i]) >= bucket:
+                    num_in_bin[i] = bucket
+                    break
+        bins.reverse()
+        plt.hist(num_in_bin,bins=len(bins),range=(0.0,1.0),log=True)
+        plt.xlabel('Clustering Coefficient')
+        plt.ylabel('Amount of Nodes')
+        plt.title('CC Distribution (Log) Test Set '+str(test+1))
+        wandb.log({'cc-distribution-log-test-set-'+str(test+1): wandb.Image(plt)})
+        plt.clf()
+        plt.close()
     else:
         _, pred = model(graph.x, graph.edge_index).max(dim=1)
         correct = float (pred[test_mask].eq(graph.y.to(device)[test_mask]).sum().item())

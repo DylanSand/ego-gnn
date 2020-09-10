@@ -103,6 +103,7 @@ class EgoGNN(torch.nn.Module):
                 x = F.relu(x)
         if count_triangles:
             #return F.relu(x)
-            return F.sigmoid(x)
+            #return F.sigmoid(x)
+            return x
         else:
             return F.log_softmax(x, dim=1)
