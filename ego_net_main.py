@@ -24,7 +24,7 @@ from torch_scatter import scatter_add
 from torch_geometric.nn import GCNConv, GATConv, GINConv, pool, SAGEConv
 from helpers import has_num, reindex_edgeindex, get_adj, to_sparse, load_graph, load_features, load_targets
 from ego_gnn import EgoGNN
-from EGONETCONFIG import current_dataset, count_triangles, test_nums_in, labeled_data, val_split, learning_rate, weight_decay, burnout_num, training_stop_limit, epoch_limit, numpy_seed, torch_seed, remove_features
+from EGONETCONFIG import current_dataset, save_data, load_data, count_triangles, test_nums_in, labeled_data, val_split, learning_rate, weight_decay, burnout_num, training_stop_limit, epoch_limit, numpy_seed, torch_seed, remove_features
 import pickle
 import wandb
 from torch_sparse import spspmm
@@ -71,9 +71,9 @@ elif DATASET == "Amazon Computers":
 elif DATASET == "Amazon Photos":
     real_data = Amazon(root=input_path, name="Photo")
 elif DATASET == "CLUSTER":
-    real_data = GNNBenchmarkDataset(root=input_path, name="CLUSTER")
+    real_data = GNNBenchmarkDataset(root=input_path, name="CLUSTER", split="test")
 elif DATASET == "PATTERN":
-    real_data = GNNBenchmarkDataset(root=input_path, name="PATTERN")
+    real_data = GNNBenchmarkDataset(root=input_path, name="PATTERN", split="test")
 elif DATASET == "Flickr":
     real_data = Flickr(root=input_path)
 elif DATASET == "OGB Products":
@@ -266,9 +266,12 @@ if save_data:
     f = open(DATASET+"norm_degrees"+extra+".p", "wb")
     pickle.dump(norm_degrees, f)
     f.close()
-    torch.save(model.state_dict(), osp.join(wandb.run.dir, DATASET+"egoNets"+extra+".p"))
-    torch.save(model.state_dict(), osp.join(wandb.run.dir, DATASET+"graph"+extra+".p"))
-    torch.save(model.state_dict(), osp.join(wandb.run.dir, DATASET+"norm_degrees"+extra+".p"))
+    #torch.save(model.state_dict(), osp.join(wandb.run.dir, DATASET+"egoNets"+extra+".p"))
+    #torch.save(model.state_dict(), osp.join(wandb.run.dir, DATASET+"graph"+extra+".p"))
+    #torch.save(model.state_dict(), osp.join(wandb.run.dir, DATASET+"norm_degrees"+extra+".p"))
+    wandb.save(DATASET+"egoNets"+extra+".p")
+    wandb.save(DATASET+"graph"+extra+".p")
+    wandb.save(DATASET+"norm_degrees"+extra+".p")
 
 #train_loader = ClusterData(graph, num_parts=int(graph.num_nodes / 10), recursive=False)
 #train_loader = ClusterLoader(train_loader, batch_size=2, shuffle=True, num_workers=12)
@@ -588,7 +591,8 @@ for i, acc in enumerate(tests_acc):
             best_test = acc
             best_test_in = i
 
-torch.save(model.state_dict(), osp.join(wandb.run.dir, 'model'+str(best_test_in+1)+'.p'))
+wandb.save('model'+str(best_test_in+1)+'.p')
+#torch.save(model.state_dict(), osp.join(wandb.run.dir, 'model'+str(best_test_in+1)+'.p'))
 
 print('Model configuration:')
 with open('./EGONETCONFIG.py', 'r') as f:

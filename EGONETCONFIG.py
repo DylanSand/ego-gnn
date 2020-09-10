@@ -3,12 +3,14 @@
 #current_dataset = { "name": "Karate Club", "location": "KarateClub" }
 #current_dataset = { "name": "Citeseer", "location": "Citeseer" }
 #current_dataset = { "name": "Pubmed", "location": "Pubmed" }
-current_dataset = { "name": "Amazon Computers", "location": "AmazonComputers" }
+#current_dataset = { "name": "Amazon Computers", "location": "AmazonComputers" }
 #current_dataset = { "name": "Amazon Photos", "location": "AmazonPhotos" }
 #current_dataset = { "name": "Reddit", "location": "Reddit" }
 #current_dataset = { "name": "Flickr", "location": "Flickr" }
 #current_dataset = { "name": "OGB Products", "location": "OGBProducts" }
 #current_dataset = { "name": "GitHub Network", "location": "GitHub" }
+#current_dataset = { "name": "CLUSTER", "location": "CLUSTER" }
+current_dataset = { "name": "PATTERN", "location": "PATTERN" }
 
 hidden_sizes = ["in", "out"]
 
@@ -47,3 +49,6 @@ numpy_seed = 45
 
 torch_seed = 75
 
+save_data = True
+
+load_data = False

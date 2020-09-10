@@ -24,7 +24,7 @@ echo "Installing pip packages..."
 
 pip3 install --no-cache-dir torch==1.5.0+cu101 torchvision==0.6.0+cu101 -f https://download.pytorch.org/whl/torch_stable.html
 pip3 install --no-cache-dir torch-scatter==latest+cu101 torch-sparse==latest+cu101 torch-spline-conv==latest+cu101 torch-cluster==latest+cu101 -f https://pytorch-geometric.com/whl/torch-1.5.0.html
-pip3 install --no-cache-dir torch-geometric
+pip3 install --no-cache-dir torch-geometric==1.6.1
 
 pip3 install ogb
 
