@@ -104,72 +104,72 @@ if load_data:
 # ---------------------------------------------------------------
 print("Done 2")
 wandb.log({'action': 'Done 2'})
-
-if DATASET == "GitHub Network":
-    graph = gitGraph
-else:
-    graph = real_data[0]
-#graph = five_data
-graph.edge_index = to_undirected(graph.edge_index, graph.num_nodes)
-graph.edge_index = add_self_loops(graph.edge_index, num_nodes=graph.num_nodes)[0]
-graph.coalesce()
-temp = NeighborSampler(edge_index=graph.edge_index, sizes=[-1])
-batches = temp
-egoNets = [0] * graph.num_nodes
-adjMats = [0] * graph.num_nodes
-plot = 331
-curPlot = 0
-norm_degrees = []
-for batch_size, n_id, adj in batches:
-    curData = subgraph(n_id, graph.edge_index)
-    updated_e_index = to_undirected(curData[0], n_id.shape[0])
-    subgraph_size = torch.numel(n_id)
-    cur_n_id = torch.sort(n_id)[0].tolist()
-    cur_e_id = adj.e_id.tolist()
-    subgraph2 = Data(edge_index=updated_e_index, edge_attr=curData[1], num_nodes=subgraph_size, n_id=cur_n_id, e_id=cur_e_id, degree=len(cur_n_id)-1, adj=get_adj(updated_e_index, graph.edge_index, curPlot, cur_e_id))
-    subgraph2.coalesce()
-    ######################
-    ego_degrees = {}
-    for edge in subgraph2.edge_index[1]:
-        cur_edge = int(edge)
-        if str(cur_edge) in ego_degrees:
-            ego_degrees[str(cur_edge)] = ego_degrees[str(cur_edge)] + 1
-        else:
-            ego_degrees[str(cur_edge)] = 1
-    ######################
-    #ego_n_degrees = []
-    #for edge in subgraph2.edge_index[1]:
-    #    cur_edge = int(edge)
-    #    ego_n_degrees.append(float(1 / float(ego_degrees[str(cur_edge)])))
-    #ego_n_degrees = torch.tensor(ego_n_degrees)
-    #ego_n_degrees = torch.reshape(ego_n_degrees, (subgraph2.edge_index.shape[1],))
-    #subgraph2.ego_degrees = ego_n_degrees
-    ego_norm_ind = [[],[]]
-    ego_norm_val = []
-    # UNDO THIS:
-    for inner_node in subgraph2.n_id:
-        ego_norm_ind[0].append(int(inner_node))
-        ego_norm_ind[1].append(int(inner_node))
-        ego_norm_val.append(1.0 / math.sqrt(float(ego_degrees[str(inner_node)])))
-    ego_norm_ind = torch.tensor(ego_norm_ind)
-    ego_norm_val = torch.tensor(ego_norm_val)
-    temp1, temp2 = spspmm(ego_norm_ind, ego_norm_val, subgraph2.edge_index, torch.ones((subgraph2.edge_index.shape[1])), graph.num_nodes, graph.num_nodes, graph.num_nodes)
-    ego_norm_ind, ego_norm_val = spspmm(temp1, temp2, ego_norm_ind, ego_norm_val, graph.num_nodes, graph.num_nodes, graph.num_nodes)
-    subgraph2.ego_norm_ind = ego_norm_ind
-    subgraph2.ego_norm_val = ego_norm_val
-    temp1 = None
-    temp2 = None
-    ego_degrees = None
-    egoNets[curPlot] = subgraph2
-    norm_degrees.append(1.0 / float(subgraph2.degree + 1))
-    curPlot = curPlot + 1
-norm_degrees = torch.reshape(torch.tensor(norm_degrees), (len(egoNets), 1))
+if not load_data:
+    if DATASET == "GitHub Network":
+        graph = gitGraph
+    else:
+        graph = real_data[0]
+    #graph = five_data
+    graph.edge_index = to_undirected(graph.edge_index, graph.num_nodes)
+    graph.edge_index = add_self_loops(graph.edge_index, num_nodes=graph.num_nodes)[0]
+    graph.coalesce()
+    temp = NeighborSampler(edge_index=graph.edge_index, sizes=[-1])
+    batches = temp
+    egoNets = [0] * graph.num_nodes
+    adjMats = [0] * graph.num_nodes
+    plot = 331
+    curPlot = 0
+    norm_degrees = []
+    for batch_size, n_id, adj in batches:
+        curData = subgraph(n_id, graph.edge_index)
+        updated_e_index = to_undirected(curData[0], n_id.shape[0])
+        subgraph_size = torch.numel(n_id)
+        cur_n_id = torch.sort(n_id)[0].tolist()
+        cur_e_id = adj.e_id.tolist()
+        subgraph2 = Data(edge_index=updated_e_index, edge_attr=curData[1], num_nodes=subgraph_size, n_id=cur_n_id, e_id=cur_e_id, degree=len(cur_n_id)-1, adj=get_adj(updated_e_index, graph.edge_index, curPlot, cur_e_id))
+        subgraph2.coalesce()
+        ######################
+        ego_degrees = {}
+        for edge in subgraph2.edge_index[1]:
+            cur_edge = int(edge)
+            if str(cur_edge) in ego_degrees:
+                ego_degrees[str(cur_edge)] = ego_degrees[str(cur_edge)] + 1
+            else:
+                ego_degrees[str(cur_edge)] = 1
+        ######################
+        #ego_n_degrees = []
+        #for edge in subgraph2.edge_index[1]:
+        #    cur_edge = int(edge)
+        #    ego_n_degrees.append(float(1 / float(ego_degrees[str(cur_edge)])))
+        #ego_n_degrees = torch.tensor(ego_n_degrees)
+        #ego_n_degrees = torch.reshape(ego_n_degrees, (subgraph2.edge_index.shape[1],))
+        #subgraph2.ego_degrees = ego_n_degrees
+        ego_norm_ind = [[],[]]
+        ego_norm_val = []
+        # UNDO THIS:
+        for inner_node in subgraph2.n_id:
+            ego_norm_ind[0].append(int(inner_node))
+            ego_norm_ind[1].append(int(inner_node))
+            ego_norm_val.append(1.0 / math.sqrt(float(ego_degrees[str(inner_node)])))
+        ego_norm_ind = torch.tensor(ego_norm_ind)
+        ego_norm_val = torch.tensor(ego_norm_val)
+        temp1, temp2 = spspmm(ego_norm_ind, ego_norm_val, subgraph2.edge_index, torch.ones((subgraph2.edge_index.shape[1])), graph.num_nodes, graph.num_nodes, graph.num_nodes)
+        ego_norm_ind, ego_norm_val = spspmm(temp1, temp2, ego_norm_ind, ego_norm_val, graph.num_nodes, graph.num_nodes, graph.num_nodes)
+        subgraph2.ego_norm_ind = ego_norm_ind
+        subgraph2.ego_norm_val = ego_norm_val
+        temp1 = None
+        temp2 = None
+        ego_degrees = None
+        egoNets[curPlot] = subgraph2
+        norm_degrees.append(1.0 / float(subgraph2.degree + 1))
+        curPlot = curPlot + 1
+    norm_degrees = torch.reshape(torch.tensor(norm_degrees), (len(egoNets), 1))
 
 # ---------------------------------------------------------------
 print("Done 3")
 wandb.log({'action': 'Done 3'})
 
-if count_triangles:
+if count_triangles and not load_data:
     num_triangles = [0] * len(egoNets)
     clustering_coeff = [float(0)] * len(egoNets)
     for i, ego in enumerate(egoNets):
@@ -241,7 +241,7 @@ if count_triangles:
     print('Average clustering coefficient is: ' + str(float(torch.mean(clustering_coeff))))
     wandb.log({'cluster-avg': float(torch.mean(clustering_coeff))})
 
-if remove_features:
+if remove_features and not load_data:
     new_features = []
     for node_i in range(len(egoNets)):
         new_features.append([float(num+1) for num in range(graph.x.shape[1])])
@@ -266,6 +266,9 @@ if save_data:
     f = open(DATASET+"norm_degrees"+extra+".p", "wb")
     pickle.dump(norm_degrees, f)
     f.close()
+    torch.save(model.state_dict(), osp.join(wandb.run.dir, DATASET+"egoNets"+extra+".p"))
+    torch.save(model.state_dict(), osp.join(wandb.run.dir, DATASET+"graph"+extra+".p"))
+    torch.save(model.state_dict(), osp.join(wandb.run.dir, DATASET+"norm_degrees"+extra+".p"))
 
 #train_loader = ClusterData(graph, num_parts=int(graph.num_nodes / 10), recursive=False)
 #train_loader = ClusterLoader(train_loader, batch_size=2, shuffle=True, num_workers=12)
