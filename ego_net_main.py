@@ -16,7 +16,7 @@ import random
 from tqdm import tqdm
 import pandas as pd
 from torch_geometric.nn import MessagePassing
-from torch_geometric.utils import add_self_loops, degree, erdos_renyi_graph, to_networkx, from_networkx, to_undirected, subgraph, to_dense_adj, remove_self_loops
+from torch_geometric.utils import add_self_loops, stochastic_blockmodel_graph, degree, erdos_renyi_graph, to_networkx, from_networkx, to_undirected, subgraph, to_dense_adj, remove_self_loops
 from torch_geometric.datasets import Amazon, GNNBenchmarkDataset, Planetoid, Reddit, KarateClub, SNAPDataset, Flickr
 from torch_geometric.data import NeighborSampler, Data, ClusterData, ClusterLoader
 import torch.nn as nern
@@ -24,7 +24,7 @@ from torch_scatter import scatter_add
 from torch_geometric.nn import GCNConv, GATConv, GINConv, pool, SAGEConv
 from helpers import has_num, reindex_edgeindex, get_adj, to_sparse, load_graph, load_features, load_targets
 from ego_gnn import EgoGNN
-from EGONETCONFIG import current_dataset, save_data, load_data, count_triangles, test_nums_in, labeled_data, val_split, learning_rate, weight_decay, burnout_num, training_stop_limit, epoch_limit, numpy_seed, torch_seed, remove_features
+from EGONETCONFIG import current_dataset, sbm_noise, save_data, load_data, count_triangles, test_nums_in, labeled_data, val_split, learning_rate, weight_decay, burnout_num, training_stop_limit, epoch_limit, numpy_seed, torch_seed, remove_features
 import pickle
 import wandb
 from torch_sparse import spspmm
@@ -83,6 +83,52 @@ elif DATASET == "GitHub Network":
     gitGraph = from_networkx(load_graph(input_path + '/musae_git_edges.csv'))
     gitGraph.x = torch.tensor(load_features(input_path + '/musae_git_features.json'))
     gitGraph.y = torch.tensor(load_targets(input_path + '/musae_git_target.csv'))
+elif DATASET == "SBM":
+
+    # Size of blocks
+    COMMUNITY_SIZE = 100
+
+    # Number of clusters
+    NUM_BLOCKS = 10
+
+    # In-Block prob.
+    INTER_PROB = 0.90
+
+    # Between-block prob.
+    INTRA_PROB = 0.10
+
+    # Connecting with noise prob
+    NOISE_PROB = 0.85
+
+    NUM_NOISE = int(sbm_noise * COMMUNITY_SIZE * NUM_BLOCKS)
+    real_data = []
+    block_sizes = [COMMUNITY_SIZE] * NUM_BLOCKS
+    block_sizes = block_sizes + ([1] * NUM_NOISE)
+    edge_probs = []
+    for x in range(NUM_BLOCKS + NUM_NOISE):
+        cur_probs = []
+        for y in range(NUM_BLOCKS + NUM_NOISE):
+            cur_prob = 0.0
+            if x == y:
+                cur_prob = INTER_PROB
+            elif x >= NUM_BLOCKS or y >= NUM_BLOCKS:
+                cur_prob = NOISE_PROB
+            else:
+                cur_prob = INTRA_PROB
+            cur_probs.append(float(cur_prob))
+        edge_probs.append(cur_probs)
+    sbm_ei = stochastic_blockmodel_graph(block_sizes, edge_probs, directed=False)
+    sbm_x = []
+    for x in range((COMMUNITY_SIZE * NUM_BLOCKS) + NUM_NOISE):
+        sbm_x.append([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0])
+    sbm_x = torch.tensor(sbm_x)
+    sbm_y = [int(x / COMMUNITY_SIZE) for x in range(COMMUNITY_SIZE * NUM_BLOCKS)]
+    sbm_y = sbm_y + [int(x + NUM_BLOCKS) for x in range(NUM_NOISE)]
+    sbm_y = torch.tensor(sbm_y)
+    print(sbm_ei)
+    print(sbm_x)
+    print(sbm_y)
+    real_data.append(Data(x=sbm_x , edge_index=sbm_ei, y=sbm_y, num_nodes=int((COMMUNITY_SIZE * NUM_BLOCKS) + NUM_NOISE)))
 
 egoNets = None
 graph = None
@@ -180,6 +226,7 @@ if count_triangles and not load_data:
         if not (ego.degree == 0 or ego.degree == 1):
             clustering_coeff[i] = float((2.0 * num_triangles[i]) / (ego.degree * (ego.degree - 1)))
     #wandb.log({'triangle-distribution': wandb.Histogram(np_histogram=np.histogram([int(tri) for tri in num_triangles],bins=list(range(int(max(num_triangles)+1)))))})
+    num_triangle_classes = int(max(num_triangles)+1)
     plt.hist([int(tri) for tri in num_triangles],bins=int(max(num_triangles)+1),range=(0,max(num_triangles)))
     plt.xlabel('Triangle Number')
     plt.ylabel('Amount of Nodes')
@@ -237,14 +284,18 @@ if count_triangles and not load_data:
     num_triangles = torch.tensor(num_triangles)
     clustering_coeff = torch.tensor(clustering_coeff)
     graph.y = clustering_coeff
+    #graph.y = num_triangles
 
     print('Average clustering coefficient is: ' + str(float(torch.mean(clustering_coeff))))
     wandb.log({'cluster-avg': float(torch.mean(clustering_coeff))})
+elif load_data and count_triangles:
+    clustering_coeff = graph.y
 
 if remove_features and not load_data:
     new_features = []
     for node_i in range(len(egoNets)):
-        new_features.append([float(num+1) for num in range(graph.x.shape[1])])
+        #new_features.append([float(num+1) for num in range(graph.x.shape[1])])
+        new_features.append([float(1) for num in range(graph.x.shape[1])])
     #for new_feat in new_features:
     #    random.Random(random.random()).shuffle(new_feat)
     graph.x = torch.tensor(new_features)
@@ -314,6 +365,11 @@ for test in range(TEST_NUM):
                 val_mask = mask
             if key == "test":
                 test_mask = mask
+    if DATASET == "SBM":
+        for noise in range(NUM_NOISE):
+            train_mask[(NUM_BLOCKS * COMMUNITY_SIZE) + noise] = False
+            val_mask[(NUM_BLOCKS * COMMUNITY_SIZE) + noise] = False
+            test_mask[(NUM_BLOCKS * COMMUNITY_SIZE) + noise] = False
     if count_triangles:
         for i, ego in enumerate(egoNets):
             if ego.degree == 0 or ego.degree == 1:
@@ -375,8 +431,11 @@ for test in range(TEST_NUM):
     # RUN MODEL:
     if count_triangles:
         model = EgoGNN(egoNets, device, 1, graph.x.shape[1], norm_degrees).to(device)
+        #model = EgoGNN(egoNets, device, num_triangles_classes, graph.x.shape[1], norm_degrees).to(device)
     elif DATASET == "Karate Club" or DATASET == "GitHub Network":
         model = EgoGNN(egoNets, device, 2, graph.x.shape[1], norm_degrees).to(device)
+    elif DATASET == "SBM":
+        model = EgoGNN(egoNets, device, NUM_BLOCKS, graph.x.shape[1], norm_degrees).to(device)
     else:
         model = EgoGNN(egoNets, device, real_data.num_classes, graph.x.shape[1], norm_degrees).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)

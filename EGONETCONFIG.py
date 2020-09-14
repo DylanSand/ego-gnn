@@ -10,7 +10,8 @@
 #current_dataset = { "name": "OGB Products", "location": "OGBProducts" }
 #current_dataset = { "name": "GitHub Network", "location": "GitHub" }
 #current_dataset = { "name": "CLUSTER", "location": "CLUSTER" }
-current_dataset = { "name": "PATTERN", "location": "PATTERN" }
+#current_dataset = { "name": "PATTERN", "location": "PATTERN" }
+current_dataset = { "name": "SBM", "location": "SBM" }
 
 hidden_sizes = ["in", "out"]
 
@@ -29,7 +30,7 @@ remove_features = False
 #   [Ego -> GCN]       [None -> GCN  ]
 # in      ->       16         ->        out
 
-test_nums_in = 4
+test_nums_in = 1
 
 labeled_data = 0.3
 
@@ -48,6 +49,8 @@ weight_decay = 1e-5
 numpy_seed = 45
 
 torch_seed = 75
+
+sbm_noise = 0.01
 
 save_data = True
 
