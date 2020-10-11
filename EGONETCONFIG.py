@@ -16,23 +16,23 @@ current_dataset = { "name": "SBM", "location": "SBM" }
 hidden_sizes = ["in", "out"]
 
 layer_design = [
-    ["Ego", "SAGE", True, False]
-    #[None, "SAGE", False, False]
+    [None, "GIN", False, False]
+    #[None, "GCN", False, False]
 ]
 
 local_depth = 1
 local_power = 2
 
 count_triangles = False
-remove_features = False
+remove_features = True
 
 #        R        R         R       R    
 #   [Ego -> GCN]       [None -> GCN  ]
 # in      ->       16         ->        out
 
-test_nums_in = 1
+test_nums_in = 4
 
-labeled_data = 0.3
+labeled_data = 0.2
 
 val_split = 0.4
 
@@ -42,7 +42,7 @@ training_stop_limit = 9
 
 epoch_limit = 300
 
-learning_rate = 0.007
+learning_rate = 0.01
 
 weight_decay = 1e-5
 

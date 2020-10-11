@@ -63,7 +63,7 @@ real_data = None
 if DATASET == "Karate Club":
     real_data = KarateClub()
 elif DATASET == "Cora" or DATASET == "Citeseer" or DATASET == "Pubmed":
-    real_data = Planetoid(root=input_path, name=DATASET)
+    real_data = Planetoid(root=input_path, name=DATASET, split="public")
 elif DATASET == "Reddit":
     real_data = Reddit(root=input_path)
 elif DATASET == "Amazon Computers":
@@ -86,49 +86,68 @@ elif DATASET == "GitHub Network":
 elif DATASET == "SBM":
 
     # Size of blocks
-    COMMUNITY_SIZE = 100
+    COMMUNITY_SIZE = 400
 
     # Number of clusters
-    NUM_BLOCKS = 10
+    NUM_BLOCKS = 3
 
     # In-Block prob.
-    INTER_PROB = 0.90
+    INTER_PROB = [0.7, 0.6, 0.5]
 
     # Between-block prob.
-    INTRA_PROB = 0.10
+    INTRA_PROB = 0.02
 
     # Connecting with noise prob
-    NOISE_PROB = 0.85
+    NOISE_PROB = 0.70
 
+    # In between 0 and 1, determines amount of block size variance
+    BLOCK_SLOPE = 0.03
+
+    USE_NOISE_NODES = False
+
+    BLOCK_SPLOPE = BLOCK_SLOPE * 2 * COMMUNITY_SIZE
     NUM_NOISE = int(sbm_noise * COMMUNITY_SIZE * NUM_BLOCKS)
     real_data = []
-    block_sizes = [COMMUNITY_SIZE] * NUM_BLOCKS
-    block_sizes = block_sizes + ([1] * NUM_NOISE)
+    block_sizes = []
+    intercept = COMMUNITY_SIZE - (BLOCK_SLOPE*NUM_BLOCKS)/2
+    for x in range(NUM_BLOCKS):
+        block_sizes.append(round(BLOCK_SLOPE*(x+0.5) + intercept))
+
+    if USE_NOISE_NODES:
+        block_sizes = block_sizes + ([1] * NUM_NOISE)
+        INTER_PROB = INTER_PROB + ([1.0] * NUM_NOISE)
+
     edge_probs = []
-    for x in range(NUM_BLOCKS + NUM_NOISE):
+    for x in range(len(block_sizes)):
         cur_probs = []
-        for y in range(NUM_BLOCKS + NUM_NOISE):
+        for y in range(len(block_sizes)):
             cur_prob = 0.0
             if x == y:
-                cur_prob = INTER_PROB
+                cur_prob = INTER_PROB[x]
             elif x >= NUM_BLOCKS or y >= NUM_BLOCKS:
                 cur_prob = NOISE_PROB
             else:
-                cur_prob = INTRA_PROB
+                if USE_NOISE_NODES:
+                    cur_prob = INTRA_PROB
+                else:
+                    cur_prob = INTRA_PROB + sbm_noise
             cur_probs.append(float(cur_prob))
         edge_probs.append(cur_probs)
+
     sbm_ei = stochastic_blockmodel_graph(block_sizes, edge_probs, directed=False)
     sbm_x = []
-    for x in range((COMMUNITY_SIZE * NUM_BLOCKS) + NUM_NOISE):
+    for x in range((COMMUNITY_SIZE * NUM_BLOCKS) + len(block_sizes) - NUM_BLOCKS):
         sbm_x.append([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0])
     sbm_x = torch.tensor(sbm_x)
-    sbm_y = [int(x / COMMUNITY_SIZE) for x in range(COMMUNITY_SIZE * NUM_BLOCKS)]
-    sbm_y = sbm_y + [int(x + NUM_BLOCKS) for x in range(NUM_NOISE)]
+    sbm_y = []
+    for ind, x in enumerate(block_sizes):
+        for y in range(x):
+            sbm_y.append(int(ind))
     sbm_y = torch.tensor(sbm_y)
     print(sbm_ei)
     print(sbm_x)
     print(sbm_y)
-    real_data.append(Data(x=sbm_x , edge_index=sbm_ei, y=sbm_y, num_nodes=int((COMMUNITY_SIZE * NUM_BLOCKS) + NUM_NOISE)))
+    real_data.append(Data(x=sbm_x , edge_index=sbm_ei, y=sbm_y, num_nodes=int((COMMUNITY_SIZE * NUM_BLOCKS) + len(block_sizes) - NUM_BLOCKS)))
 
 egoNets = None
 graph = None
@@ -294,10 +313,10 @@ elif load_data and count_triangles:
 if remove_features and not load_data:
     new_features = []
     for node_i in range(len(egoNets)):
-        #new_features.append([float(num+1) for num in range(graph.x.shape[1])])
-        new_features.append([float(1) for num in range(graph.x.shape[1])])
-    #for new_feat in new_features:
-    #    random.Random(random.random()).shuffle(new_feat)
+        new_features.append([float(num+1) for num in range(graph.x.shape[1])])
+        #new_features.append([float(1) for num in range(graph.x.shape[1])])
+    for new_feat in new_features:
+        random.Random(random.random()).shuffle(new_feat)
     graph.x = torch.tensor(new_features)
 
 # ---------------------------------------------------------------
@@ -365,7 +384,7 @@ for test in range(TEST_NUM):
                 val_mask = mask
             if key == "test":
                 test_mask = mask
-    if DATASET == "SBM":
+    if DATASET == "SBM" and USE_NOISE_NODES:
         for noise in range(NUM_NOISE):
             train_mask[(NUM_BLOCKS * COMMUNITY_SIZE) + noise] = False
             val_mask[(NUM_BLOCKS * COMMUNITY_SIZE) + noise] = False
