@@ -5,7 +5,9 @@ import torch.nn.functional as F
 from torch_geometric.nn import GCNConv, GATConv, GINConv, pool, SAGEConv
 import torch_sparse
 from EGONETCONFIG import hidden_sizes, layer_design, local_depth, local_power, count_triangles
- 
+
+USE_RAW_TRI = True
+
 class EgoGNN(torch.nn.Module):
     def __init__(self, egoNets, device, num_out, num_feat, norm_degrees):
         super(EgoGNN, self).__init__()
@@ -101,7 +103,7 @@ class EgoGNN(torch.nn.Module):
                 curMod = curMod + 1
             if layer[3]:
                 x = F.relu(x)
-        if count_triangles:
+        if count_triangles and not USE_RAW_TRI:
             #return F.relu(x)
             #return F.sigmoid(x)
             return x

@@ -302,8 +302,9 @@ if count_triangles and not load_data:
 
     num_triangles = torch.tensor(num_triangles)
     clustering_coeff = torch.tensor(clustering_coeff)
-    graph.y = clustering_coeff
-    #graph.y = num_triangles
+    #graph.y = clustering_coeff
+    graph.y = num_triangles
+    USING_RAW_TRI = True
 
     print('Average clustering coefficient is: ' + str(float(torch.mean(clustering_coeff))))
     wandb.log({'cluster-avg': float(torch.mean(clustering_coeff))})
@@ -448,9 +449,10 @@ for test in range(TEST_NUM):
         plt.close()
 
     # RUN MODEL:
-    if count_triangles:
+    if count_triangles and not USING_RAW_TRI:
         model = EgoGNN(egoNets, device, 1, graph.x.shape[1], norm_degrees).to(device)
-        #model = EgoGNN(egoNets, device, num_triangles_classes, graph.x.shape[1], norm_degrees).to(device)
+    elif count_triangles and USING_RAW_TRI:
+        model = EgoGNN(egoNets, device, num_triangles_classes, graph.x.shape[1], norm_degrees).to(device)
     elif DATASET == "Karate Club" or DATASET == "GitHub Network":
         model = EgoGNN(egoNets, device, 2, graph.x.shape[1], norm_degrees).to(device)
     elif DATASET == "SBM":
@@ -472,7 +474,7 @@ for test in range(TEST_NUM):
         optimizer.zero_grad()
         out = model(graph.x, graph.edge_index)
         loss = None
-        if count_triangles:
+        if count_triangles and not USING_RAW_TRI:
             loss = F.mse_loss(out[train_mask], graph.y.to(device).view(-1, 1)[train_mask])
             training_loss = torch.mean(loss)
             #training_loss = torch.mean(F.mse_loss(torch.exp(out[train_mask])-1, clustering_coeff.to(device).view(-1, 1)[train_mask]))
@@ -496,7 +498,7 @@ for test in range(TEST_NUM):
             pickle.dump(model, f)
             f.close()
             model.eval()
-            if count_triangles:
+            if count_triangles and not USING_RAW_TRI:
                 pred = model(graph.x, graph.edge_index)
                 #best_score = torch.mean(F.mse_loss(torch.exp(pred[val_mask])-1, clustering_coeff.to(device).view(-1, 1)[val_mask]))
                 best_score = torch.mean(F.mse_loss(pred[val_mask], graph.y.to(device)[val_mask].view(-1, 1)))
@@ -513,7 +515,7 @@ for test in range(TEST_NUM):
         else:
             model.eval()
             cur_acc = 0
-            if count_triangles:
+            if count_triangles and not USING_RAW_TRI:
                 pred = model(graph.x, graph.edge_index)
                 #cur_acc = torch.mean(F.mse_loss(torch.exp(pred[val_mask])-1, clustering_coeff.to(device).view(-1, 1)[val_mask]))
                 cur_acc = torch.mean(F.mse_loss(pred[val_mask], graph.y.to(device)[val_mask].view(-1, 1)))
@@ -534,7 +536,7 @@ for test in range(TEST_NUM):
             if cur_epoch > EPOCH_LIMIT:
                 print('          We have hit the epoch limit.')
                 training_done = True
-            if (not count_triangles and cur_acc < best_score) or (count_triangles and cur_acc > best_score):
+            if (not count_triangles and cur_acc < best_score) or (count_triangles and not USING_RAW_TRI and cur_acc > best_score) or (count_triangles and USING_RAW_TRI and cur_acc < best_score):
                 print('          We did worse.')
                 print('          Current counter: ' + str(training_counter))
                 if training_counter > TRAINING_STOP_LIMIT:
@@ -558,7 +560,7 @@ for test in range(TEST_NUM):
     f.close()
     model.eval()
     acc = 0
-    if count_triangles:
+    if count_triangles and not USING_RAW_TRI:
         pred = model(graph.x, graph.edge_index)
         #acc = torch.mean(F.mse_loss(torch.exp(pred[test_mask])-1, clustering_coeff.to(device).view(-1, 1)[test_mask]))
         acc = float(torch.mean(F.mse_loss(pred[test_mask], graph.y.to(device)[test_mask].view(-1, 1))))
@@ -642,14 +644,14 @@ for test in range(TEST_NUM):
         acc = correct / test_mask.sum().item()
         print('Test Accuracy: {:.4f}'.format(acc))
     tests_acc.append(acc)
-    if not count_triangles:
+    if not count_triangles or USING_RAW_TRI:
         macro_score = f1_score(graph.y[test_mask], pred[test_mask].cpu(), average='macro')
         print('Macro score is: ' + str(macro_score))
         micro_score = f1_score(graph.y[test_mask], pred[test_mask].cpu(), average='micro')
         print('Micro score is: ' + str(micro_score))
         tests_f1_macro.append(macro_score)
         tests_f1_micro.append(micro_score)
-if count_triangles:
+if count_triangles and not USING_RAW_TRI:
     print('Average loss of ' + str(len(tests_acc)) + ' tests is: ' + str(sum(tests_acc) / len(tests_acc)))
     print('Average clustering coefficient of ' + str(len(tests_clus_avg)) + ' tests is: ' + str(sum(tests_clus_avg) / len(tests_clus_avg)))
 else:
@@ -660,7 +662,7 @@ else:
 best_test_in = 0
 best_test = tests_acc[0]
 for i, acc in enumerate(tests_acc):
-    if count_triangles:
+    if count_triangles and not USING_RAW_TRI:
         if acc < best_test:
             best_test = acc
             best_test_in = i
